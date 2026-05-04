@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { itemsTable, writeOffsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { logger } from "./logger";
+import { logAudit } from "./auditLogger";
 
 interface BreakageState {
   step: "await_item" | "await_qty" | "await_reason";
@@ -148,12 +149,19 @@ export function initTelegramBot(): void {
       const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, itemId) });
       const totalValue = item ? Number(item.pricePerUnit) * qty : 0;
 
-      await db.insert(writeOffsTable).values({
+      const [woRow] = await db.insert(writeOffsTable).values({
         itemId,
         quantity: String(qty),
         reason,
         totalValue: String(totalValue),
         notes: "Списание через Telegram-бот",
+      }).returning({ id: writeOffsTable.id });
+
+      await logAudit({
+        action: "create",
+        entityType: "write-off",
+        entityId: woRow?.id,
+        details: `Telegram bot: ${itemName} × ${qty} (${reason})`,
       });
 
       await db

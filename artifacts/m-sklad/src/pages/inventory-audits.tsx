@@ -58,11 +58,17 @@ export default function InventoryAudits() {
 
   function handleSave() {
     if (!selectedId || !detail) return;
-    const items = (detail as Audit).items?.map((item) => ({
-      itemId: item.itemId,
-      actualStock: Number(counts[item.id] !== undefined ? counts[item.id] : (item.actualStock ?? 0)),
-    })) ?? [];
-    updateAudit.mutate({ id: selectedId, data: { items } }, {
+    const editedItems = (detail as Audit).items
+      ?.filter((item) => counts[item.id] !== undefined)
+      .map((item) => ({
+        itemId: item.itemId,
+        actualStock: Number(counts[item.id]),
+      })) ?? [];
+    if (!editedItems.length) {
+      toast({ title: "Нет изменений для сохранения" });
+      return;
+    }
+    updateAudit.mutate({ id: selectedId, data: { items: editedItems } }, {
       onSuccess: () => {
         toast({ title: "Данные сохранены" });
         queryClient.invalidateQueries({ queryKey: getGetInventoryAuditQueryKey(selectedId) });

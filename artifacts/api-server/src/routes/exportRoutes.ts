@@ -8,7 +8,7 @@ import { requireRole } from "../middleware/rbac";
 
 const router: IRouter = Router();
 
-router.get("/export/stock", requireAuth(), requireRole("admin", "manager", "accountant"), async (req: Request, res: Response) => {
+router.get("/export/stock", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const rows = await db
     .select({
       id: itemsTable.id,
@@ -47,7 +47,7 @@ router.get("/export/stock", requireAuth(), requireRole("admin", "manager", "acco
   res.send(buf);
 });
 
-router.get("/export/write-offs", requireAuth(), requireRole("admin", "manager", "accountant"), async (req: Request, res: Response) => {
+router.get("/export/write-offs", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const { from, to } = req.query;
   const conditions = [];
   if (from) conditions.push(gte(writeOffsTable.createdAt, new Date(String(from))));
