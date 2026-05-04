@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -18,7 +18,8 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
   });
 
   if (!user) {
-    const clerkUser = await fetch(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const clerkUser: any = await fetch(
       `https://api.clerk.com/v1/users/${clerkUserId}`,
       { headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` } }
     ).then((r) => r.json());
@@ -26,12 +27,19 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
     const email =
       clerkUser?.email_addresses?.[0]?.email_address ?? `${clerkUserId}@unknown`;
 
+    const [{ count: userCount }] = await db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(usersTable)
+      .catch(() => [{ count: 0 }]);
+
+    const isFirstUser = Number(userCount) === 0;
+
     [user] = await db
       .insert(usersTable)
       .values({
         clerkUserId,
         email,
-        role: "warehouse",
+        role: isFirstUser ? "admin" : "warehouse",
         firstName: clerkUser?.first_name ?? null,
         lastName: clerkUser?.last_name ?? null,
       })

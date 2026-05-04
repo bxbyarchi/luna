@@ -61,17 +61,19 @@ router.get("/inventory-audits/:id", requireAuth(), async (req: Request, res: Res
   res.json({ ...audit, items: auditItems });
 });
 
-router.put("/inventory-audits/:id", requireAuth(), async (req: Request, res: Response) => {
+router.patch("/inventory-audits/:id", requireAuth(), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const { items } = req.body;
   if (!Array.isArray(items)) { res.status(400).json({ error: "items array required" }); return; }
 
   for (const item of items) {
-    if (item.id && item.actualStock !== undefined) {
+    if (item.itemId !== undefined && item.actualStock !== undefined) {
       await db
         .update(auditItemsTable)
         .set({ actualStock: String(item.actualStock) })
-        .where(eq(auditItemsTable.id, Number(item.id)));
+        .where(
+          sql`${auditItemsTable.auditId} = ${id} AND ${auditItemsTable.itemId} = ${Number(item.itemId)}`
+        );
     }
   }
 
@@ -81,13 +83,32 @@ router.put("/inventory-audits/:id", requireAuth(), async (req: Request, res: Res
 
 router.post("/inventory-audits/:id/submit", requireAuth(), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
+
+  const audit = await db.query.inventoryAuditsTable.findFirst({ where: eq(inventoryAuditsTable.id, id) });
+  if (!audit) { res.status(404).json({ error: "Not found" }); return; }
+  if (audit.status === "submitted") { res.status(400).json({ error: "Already submitted" }); return; }
+
+  const auditItems = await db
+    .select()
+    .from(auditItemsTable)
+    .where(eq(auditItemsTable.auditId, id));
+
+  for (const auditItem of auditItems) {
+    if (auditItem.actualStock !== null) {
+      await db
+        .update(itemsTable)
+        .set({ currentStock: String(auditItem.actualStock) })
+        .where(eq(itemsTable.id, auditItem.itemId));
+    }
+  }
+
   const [row] = await db
     .update(inventoryAuditsTable)
     .set({ status: "submitted", submittedAt: new Date() })
     .where(eq(inventoryAuditsTable.id, id))
     .returning();
-  if (!row) { res.status(404).json({ error: "Not found" }); return; }
-  await logAudit({ action: "submit", entityType: "inventory_audit", entityId: id, clerkUserId: req.auth?.userId });
+
+  await logAudit({ action: "submit", entityType: "inventory_audit", entityId: id, clerkUserId: req.auth?.userId, details: `Applied ${auditItems.filter((i) => i.actualStock !== null).length} item counts` });
   res.json(row);
 });
 

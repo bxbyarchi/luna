@@ -18,7 +18,7 @@ import type {
 
 import type {
   AnalyticsSummary,
-  AuditLogEntry,
+  AuditLogListResponse,
   Category,
   CategoryBreakdownItem,
   CreateCategoryBody,
@@ -2683,7 +2683,7 @@ export function useGetAnalyticsLowStock<
 }
 
 /**
- * @summary List audit log entries (admin only)
+ * @summary List audit log entries (admin/manager only)
  */
 export const getListAuditLogUrl = (params?: ListAuditLogParams) => {
   const normalizedParams = new URLSearchParams();
@@ -2704,8 +2704,8 @@ export const getListAuditLogUrl = (params?: ListAuditLogParams) => {
 export const listAuditLog = async (
   params?: ListAuditLogParams,
   options?: RequestInit,
-): Promise<AuditLogEntry[]> => {
-  return customFetch<AuditLogEntry[]>(getListAuditLogUrl(params), {
+): Promise<AuditLogListResponse> => {
+  return customFetch<AuditLogListResponse>(getListAuditLogUrl(params), {
     ...options,
     method: "GET",
   });
@@ -2750,7 +2750,7 @@ export type ListAuditLogQueryResult = NonNullable<
 export type ListAuditLogQueryError = ErrorType<unknown>;
 
 /**
- * @summary List audit log entries (admin only)
+ * @summary List audit log entries (admin/manager only)
  */
 
 export function useListAuditLog<

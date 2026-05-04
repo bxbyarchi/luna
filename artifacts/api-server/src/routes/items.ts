@@ -78,7 +78,7 @@ router.get("/items/:id", requireAuth(), async (req: Request, res: Response) => {
   res.json(row);
 });
 
-router.put("/items/:id", requireAuth(), async (req: Request, res: Response) => {
+router.patch("/items/:id", requireAuth(), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const { name, categoryId, unit, location, currentStock, minThreshold, pricePerUnit, photoUrl, notes } = req.body;
   const updates: Record<string, unknown> = {};

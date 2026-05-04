@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useListCategories, useCreateCategory, useUpdateCategory, useDeleteCategory,
   getListCategoriesQueryKey,
@@ -10,11 +10,29 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const CYRILLIC_MAP: Record<string, string> = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "zh",
+  з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o",
+  п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "kh", ц: "ts",
+  ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
+};
+
+function toSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .split("")
+    .map((ch) => CYRILLIC_MAP[ch] ?? (ch.match(/[a-z0-9]/) ? ch : "-"))
+    .join("")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
+}
 
 const catSchema = z.object({
   name: z.string().min(1, "Название обязательно"),
@@ -39,6 +57,14 @@ export default function Categories() {
     resolver: zodResolver(catSchema),
     defaultValues: { name: "", slug: "", description: "" },
   });
+
+  const nameValue = useWatch({ control: form.control, name: "name" });
+
+  useEffect(() => {
+    if (!editing && nameValue) {
+      form.setValue("slug", toSlug(nameValue), { shouldValidate: true });
+    }
+  }, [nameValue, editing, form]);
 
   function openCreate() {
     setEditing(null);
@@ -79,7 +105,7 @@ export default function Categories() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Категории</h1>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="heading-categories">Категории</h1>
           <p className="text-muted-foreground text-sm">Группы классификации позиций.</p>
         </div>
         <Button onClick={openCreate} data-testid="btn-create-category">
@@ -130,7 +156,11 @@ export default function Categories() {
                 <FormItem><FormLabel>Название *</FormLabel><FormControl><Input placeholder="Мебель" {...field} data-testid="input-cat-name" /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="slug" render={({ field }) => (
-                <FormItem><FormLabel>Slug *</FormLabel><FormControl><Input placeholder="furniture" {...field} data-testid="input-cat-slug" /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel>Slug *</FormLabel>
+                  <FormControl><Input placeholder="furniture" {...field} data-testid="input-cat-slug" /></FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
               <FormField control={form.control} name="description" render={({ field }) => (
                 <FormItem><FormLabel>Описание</FormLabel><FormControl><Input placeholder="Столы, стулья, диваны..." {...field} data-testid="input-cat-description" /></FormControl><FormMessage /></FormItem>

@@ -23,7 +23,7 @@ router.post("/categories", requireAuth(), async (req: Request, res: Response) =>
   res.status(201).json(row);
 });
 
-router.put("/categories/:id", requireAuth(), async (req: Request, res: Response) => {
+router.patch("/categories/:id", requireAuth(), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const { name, slug, description } = req.body;
   const [row] = await db

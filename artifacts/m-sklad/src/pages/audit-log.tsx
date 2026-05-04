@@ -39,9 +39,8 @@ export default function AuditLog() {
     { query: { queryKey: getListAuditLogQueryKey({ limit: PAGE_SIZE, offset: page * PAGE_SIZE }) } }
   );
 
-  const logData = data as { rows: Array<{ id: number; action: string; entityType: string; entityId?: number; clerkUserId?: string; details?: string; createdAt: string }>; total: number } | undefined;
-  const total = logData?.total ?? 0;
-  const rows = logData?.rows ?? [];
+  const total = data?.total ?? 0;
+  const rows = data?.rows ?? [];
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (

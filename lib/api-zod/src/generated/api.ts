@@ -560,7 +560,7 @@ export const GetAnalyticsLowStockResponse = zod.array(
 );
 
 /**
- * @summary List audit log entries (admin only)
+ * @summary List audit log entries (admin/manager only)
  */
 export const listAuditLogQueryLimitDefault = 50;
 export const listAuditLogQueryOffsetDefault = 0;
@@ -570,16 +570,22 @@ export const ListAuditLogQueryParams = zod.object({
   offset: zod.coerce.number().default(listAuditLogQueryOffsetDefault),
 });
 
-export const ListAuditLogResponseItem = zod.object({
-  id: zod.number(),
-  action: zod.string(),
-  entityType: zod.string(),
-  entityId: zod.number().nullish(),
-  clerkUserId: zod.string().nullish(),
-  details: zod.string().nullish(),
-  createdAt: zod.coerce.date(),
+export const ListAuditLogResponse = zod.object({
+  rows: zod.array(
+    zod.object({
+      id: zod.number(),
+      action: zod.string(),
+      entityType: zod.string(),
+      entityId: zod.number().nullish(),
+      clerkUserId: zod.string().nullish(),
+      details: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  total: zod.number(),
+  limit: zod.number(),
+  offset: zod.number(),
 });
-export const ListAuditLogResponse = zod.array(ListAuditLogResponseItem);
 
 /**
  * @summary Export write-off report as Excel file

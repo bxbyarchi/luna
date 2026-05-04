@@ -286,6 +286,13 @@ export interface AuditLogEntry {
   createdAt: string;
 }
 
+export interface AuditLogListResponse {
+  rows: AuditLogEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface RequestUploadUrlBody {
   name: string;
   size: number;

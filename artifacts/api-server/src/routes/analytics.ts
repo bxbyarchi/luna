@@ -100,7 +100,11 @@ router.get("/analytics/spending-over-time", requireAuth(), async (req: Request, 
 
   const merged: Record<string, { period: string; receipts: number; writeOffs: number }> = {};
   for (const row of rows.rows as Array<{ period: Date | string; receipts: string; write_offs: string }>) {
-    const key = row.period instanceof Date ? row.period.toISOString() : String(row.period);
+    const rawPeriod = row.period as unknown;
+    const key =
+      typeof (rawPeriod as { toISOString?: unknown }).toISOString === "function"
+        ? (rawPeriod as Date).toISOString()
+        : String(rawPeriod);
     if (!merged[key]) merged[key] = { period: key, receipts: 0, writeOffs: 0 };
     merged[key].receipts += Number(row.receipts);
     merged[key].writeOffs += Number(row.write_offs);

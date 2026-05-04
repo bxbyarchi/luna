@@ -20,7 +20,7 @@ router.post("/staff", requireAuth(), async (req: Request, res: Response) => {
   res.status(201).json(row);
 });
 
-router.put("/staff/:id", requireAuth(), async (req: Request, res: Response) => {
+router.patch("/staff/:id", requireAuth(), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const { name, position, phone, isActive } = req.body;
   const updates: Record<string, unknown> = {};

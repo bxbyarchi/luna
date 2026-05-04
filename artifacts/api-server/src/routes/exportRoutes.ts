@@ -4,10 +4,11 @@ import { db } from "@workspace/db";
 import { itemsTable, categoriesTable, writeOffsTable, staffTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import * as XLSX from "xlsx";
+import { requireRole } from "../middleware/rbac";
 
 const router: IRouter = Router();
 
-router.get("/export/stock", requireAuth(), async (req: Request, res: Response) => {
+router.get("/export/stock", requireAuth(), requireRole("admin", "manager", "accountant"), async (req: Request, res: Response) => {
   const rows = await db
     .select({
       id: itemsTable.id,
@@ -46,7 +47,7 @@ router.get("/export/stock", requireAuth(), async (req: Request, res: Response) =
   res.send(buf);
 });
 
-router.get("/export/write-offs", requireAuth(), async (req: Request, res: Response) => {
+router.get("/export/write-offs", requireAuth(), requireRole("admin", "manager", "accountant"), async (req: Request, res: Response) => {
   const { from, to } = req.query;
   const conditions = [];
   if (from) conditions.push(sql`${writeOffsTable.createdAt} >= ${new Date(String(from))}`);

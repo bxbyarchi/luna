@@ -25,17 +25,23 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 ## Features Implemented
 
 ### Backend (`artifacts/api-server/src/routes/`)
-- `auth.ts` — Clerk auth endpoints
-- `categories.ts` — CRUD for categories
-- `items.ts` — CRUD for items with low-stock flag, search
+- `auth.ts` — Clerk auth, auto-creates user in `usersTable`; first user ever promoted to admin
+- `categories.ts` — CRUD for categories (update uses PATCH)
+- `items.ts` — CRUD for items with low-stock flag, search (update uses PATCH)
 - `receipts.ts` — Goods receiving, updates item stock
 - `writeOffs.ts` — Write-off/breakage recording
-- `inventoryAudits.ts` — Audit creation, item count input, submission
-- `staff.ts` — Staff directory CRUD
+- `inventoryAudits.ts` — Audit creation; PATCH update uses `itemId` (not auditItem.id); submit reconciles `items.currentStock` from actual counts
+- `staff.ts` — Staff directory CRUD (update uses PATCH)
 - `analytics.ts` — 5 endpoints: summary KPIs, category breakdown, spending over time (by period), top write-offs, low stock
-- `auditLog.ts` — Paginated audit log with total count
-- `exportRoutes.ts` — Excel export via xlsx library for stock and write-offs
+- `auditLog.ts` — Paginated audit log — returns `{rows, total, limit, offset}`; restricted to admin/manager roles
+- `exportRoutes.ts` — Excel export via xlsx; restricted to admin/manager/accountant roles
 - `storage.ts` — Object storage for photo uploads
+
+### RBAC (`artifacts/api-server/src/middleware/rbac.ts`)
+- `requireRole(...roles)` middleware using `getAuth(req)` from `@clerk/express`
+- Role hierarchy: admin(4) > manager(3) > accountant(2) > warehouse(1)
+- Auto-creates user record if not in `usersTable`; first user gets admin role
+- Applied to: audit-log (admin/manager), exports (admin/manager/accountant)
 
 ### Frontend (`artifacts/m-sklad/src/pages/`)
 - `dashboard.tsx` — Recharts BarChart (spending over time) + PieChart (category breakdown) + 4 KPI cards + low stock alerts + top write-offs
@@ -45,7 +51,7 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 - `write-offs.tsx` — Write-off form with item/staff/reason selectors (6 predefined reasons)
 - `inventory-audits.tsx` — Create audits, view items with system vs actual counts, save/submit
 - `staff.tsx` — Full CRUD with active status badge
-- `audit-log.tsx` — Paginated table of all system actions with action/entity type badges
+- `audit-log.tsx` — Paginated table (uses `{rows, total}` from API) of all system actions with action/entity type badges
 
 ## Database Schema (`lib/db/src/schema/`)
 
@@ -58,6 +64,11 @@ All numeric values stored as Drizzle `numeric` type (comes back as strings from 
 - Zod forms use `import { z } from "zod"` (NOT `zod/v4`) for `@hookform/resolvers/zod` compatibility
 - Generated API types use `number` for numeric fields; use `as unknown as LocalType[]` when local types differ
 - `useListReceipts` and `useListWriteOffs` take `params` as first arg (no `query` key in params) — pass React Query options as second arg
+- All update endpoints use PATCH (not PUT) — both backend routes and generated client
+- Categories page auto-generates slug from Cyrillic name via transliteration (`useWatch` + `useEffect`)
+- `express-augment.d.ts` in `src/types/` augments Express `Request` with `auth?: { userId?, sessionId?, orgId? }`
+- OpenAPI spec: `AuditLogListResponse` schema added; `listAuditLog` returns it instead of bare array
+- Spending-over-time analytics: `row.period` safely handled via `typeof .toISOString === 'function'` check
 - Analytics `spending-over-time`: `DATE_TRUNC` result may be string or Date; handle both cases
 - Frontend preview path: `/` (root)
 - API base URL: `http://localhost:8080` (configured in `artifacts/m-sklad/src/lib/api.ts` or vite proxy)

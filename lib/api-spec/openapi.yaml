@@ -617,7 +617,7 @@ paths:
     get:
       operationId: listAuditLog
       tags: [audit-log]
-      summary: List audit log entries (admin only)
+      summary: List audit log entries (admin/manager only)
       parameters:
         - name: limit
           in: query
@@ -631,13 +631,11 @@ paths:
             default: 0
       responses:
         "200":
-          description: Audit log entries
+          description: Paginated audit log entries
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AuditLogEntry"
+                $ref: "#/components/schemas/AuditLogListResponse"
 
   /export/stock:
     get:
@@ -1189,6 +1187,25 @@ components:
         - action
         - entityType
         - createdAt
+
+    AuditLogListResponse:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogEntry"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - rows
+        - total
+        - limit
+        - offset
 
     RequestUploadUrlBody:
       type: object

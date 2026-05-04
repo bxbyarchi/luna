@@ -3,10 +3,11 @@ import { requireAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { auditLogTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { requireRole } from "../middleware/rbac";
 
 const router: IRouter = Router();
 
-router.get("/audit-log", requireAuth(), async (req: Request, res: Response) => {
+router.get("/audit-log", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
   const limit = Math.min(Number(req.query.limit ?? 50), 200);
   const offset = Number(req.query.offset ?? 0);
 
