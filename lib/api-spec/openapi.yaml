@@ -3,20 +3,40 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: M-Sklad Restaurant Inventory & ERP API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Auth context
+  - name: categories
+    description: Item categories
+  - name: items
+    description: Inventory items
+  - name: receipts
+    description: Goods receiving
+  - name: write-offs
+    description: Write-offs and breakage
+  - name: inventory-audits
+    description: Inventory audits
+  - name: staff
+    description: Staff directory
+  - name: analytics
+    description: Analytics & dashboard
+  - name: audit-log
+    description: Audit log
+  - name: storage
+    description: File storage
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +44,657 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user info and role
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          description: Unauthorized
+
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: List all categories
+      responses:
+        "200":
+          description: Categories list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+    post:
+      operationId: createCategory
+      tags: [categories]
+      summary: Create a category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCategoryBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+
+  /categories/{id}:
+    patch:
+      operationId: updateCategory
+      tags: [categories]
+      summary: Update a category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCategoryBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+    delete:
+      operationId: deleteCategory
+      tags: [categories]
+      summary: Delete a category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List inventory items
+      parameters:
+        - name: categoryId
+          in: query
+          schema:
+            type: integer
+        - name: belowThreshold
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Items list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+    post:
+      operationId: createItem
+      tags: [items]
+      summary: Create an inventory item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateItemBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+  /items/{id}:
+    get:
+      operationId: getItem
+      tags: [items]
+      summary: Get a single item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateItem
+      tags: [items]
+      summary: Update an item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateItemBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+    delete:
+      operationId: deleteItem
+      tags: [items]
+      summary: Delete an item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /receipts:
+    get:
+      operationId: listReceipts
+      tags: [receipts]
+      summary: List receipts (receiving records)
+      parameters:
+        - name: itemId
+          in: query
+          schema:
+            type: integer
+        - name: from
+          in: query
+          schema:
+            type: string
+        - name: to
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Receipts list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Receipt"
+    post:
+      operationId: createReceipt
+      tags: [receipts]
+      summary: Record a goods receipt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReceiptBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Receipt"
+
+  /receipts/{id}:
+    get:
+      operationId: getReceipt
+      tags: [receipts]
+      summary: Get a receipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Receipt"
+
+  /write-offs:
+    get:
+      operationId: listWriteOffs
+      tags: [write-offs]
+      summary: List write-offs and breakage records
+      parameters:
+        - name: itemId
+          in: query
+          schema:
+            type: integer
+        - name: staffId
+          in: query
+          schema:
+            type: integer
+        - name: from
+          in: query
+          schema:
+            type: string
+        - name: to
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Write-offs list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WriteOff"
+    post:
+      operationId: createWriteOff
+      tags: [write-offs]
+      summary: Record a write-off or breakage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWriteOffBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteOff"
+
+  /write-offs/{id}:
+    get:
+      operationId: getWriteOff
+      tags: [write-offs]
+      summary: Get a write-off
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: WriteOff
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteOff"
+
+  /inventory-audits:
+    get:
+      operationId: listInventoryAudits
+      tags: [inventory-audits]
+      summary: List inventory audits
+      responses:
+        "200":
+          description: Audits list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryAudit"
+    post:
+      operationId: createInventoryAudit
+      tags: [inventory-audits]
+      summary: Start a new inventory audit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInventoryAuditBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryAudit"
+
+  /inventory-audits/{id}:
+    get:
+      operationId: getInventoryAudit
+      tags: [inventory-audits]
+      summary: Get an inventory audit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryAudit"
+    patch:
+      operationId: updateInventoryAudit
+      tags: [inventory-audits]
+      summary: Update audit items (submit counts)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInventoryAuditBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryAudit"
+
+  /inventory-audits/{id}/submit:
+    post:
+      operationId: submitInventoryAudit
+      tags: [inventory-audits]
+      summary: Submit (finalize) an inventory audit
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryAudit"
+
+  /staff:
+    get:
+      operationId: listStaff
+      tags: [staff]
+      summary: List staff members
+      responses:
+        "200":
+          description: Staff list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffMember"
+    post:
+      operationId: createStaffMember
+      tags: [staff]
+      summary: Create a staff member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaffMemberBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMember"
+
+  /staff/{id}:
+    patch:
+      operationId: updateStaffMember
+      tags: [staff]
+      summary: Update a staff member
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStaffMemberBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMember"
+    delete:
+      operationId: deleteStaffMember
+      tags: [staff]
+      summary: Delete a staff member
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /analytics/summary:
+    get:
+      operationId: getAnalyticsSummary
+      tags: [analytics]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsSummary"
+
+  /analytics/category-breakdown:
+    get:
+      operationId: getAnalyticsCategoryBreakdown
+      tags: [analytics]
+      summary: Category breakdown by value
+      responses:
+        "200":
+          description: Category breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryBreakdownItem"
+
+  /analytics/spending-over-time:
+    get:
+      operationId: getAnalyticsSpendingOverTime
+      tags: [analytics]
+      summary: Spending over time (receipts vs write-offs)
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month, year]
+            default: month
+      responses:
+        "200":
+          description: Time series data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SpendingDataPoint"
+
+  /analytics/top-write-offs:
+    get:
+      operationId: getAnalyticsTopWriteOffs
+      tags: [analytics]
+      summary: Top items by write-off frequency
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Top write-offs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TopWriteOffItem"
+
+  /analytics/low-stock:
+    get:
+      operationId: getAnalyticsLowStock
+      tags: [analytics]
+      summary: Items at or below minimum threshold
+      responses:
+        "200":
+          description: Low stock items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+
+  /audit-log:
+    get:
+      operationId: listAuditLog
+      tags: [audit-log]
+      summary: List audit log entries (admin only)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLogEntry"
+
+  /export/stock:
+    get:
+      operationId: exportStock
+      tags: [analytics]
+      summary: Export current stock as Excel file
+      responses:
+        "200":
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /export/write-offs:
+    get:
+      operationId: exportWriteOffs
+      tags: [analytics]
+      summary: Export write-off report as Excel file
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+        - name: to
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +705,512 @@ components:
       required:
         - status
 
+    CurrentUser:
+      type: object
+      properties:
+        clerkUserId:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, manager, accountant, warehouse]
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+      required:
+        - clerkUserId
+        - email
+        - role
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - slug
+        - createdAt
+
+    CreateCategoryBody:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: ["string", "null"]
+      required:
+        - name
+        - slug
+
+    UpdateCategoryBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+
+    Item:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        categoryId:
+          type: integer
+        categoryName:
+          type: ["string", "null"]
+        unit:
+          type: string
+        location:
+          type: ["string", "null"]
+        currentStock:
+          type: number
+        minThreshold:
+          type: ["number", "null"]
+        pricePerUnit:
+          type: number
+        isBelowThreshold:
+          type: boolean
+        photoUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - categoryId
+        - unit
+        - currentStock
+        - pricePerUnit
+        - isBelowThreshold
+        - createdAt
+        - updatedAt
+
+    CreateItemBody:
+      type: object
+      properties:
+        name:
+          type: string
+        categoryId:
+          type: integer
+        unit:
+          type: string
+        location:
+          type: ["string", "null"]
+        currentStock:
+          type: number
+        minThreshold:
+          type: ["number", "null"]
+        pricePerUnit:
+          type: number
+        photoUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - name
+        - categoryId
+        - unit
+        - pricePerUnit
+
+    UpdateItemBody:
+      type: object
+      properties:
+        name:
+          type: string
+        categoryId:
+          type: integer
+        unit:
+          type: string
+        location:
+          type: ["string", "null"]
+        minThreshold:
+          type: ["number", "null"]
+        pricePerUnit:
+          type: number
+        photoUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    Receipt:
+      type: object
+      properties:
+        id:
+          type: integer
+        itemId:
+          type: integer
+        itemName:
+          type: ["string", "null"]
+        quantity:
+          type: number
+        pricePerUnit:
+          type: number
+        totalCost:
+          type: number
+        supplier:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        recordedByClerkId:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - itemId
+        - quantity
+        - pricePerUnit
+        - totalCost
+        - createdAt
+
+    CreateReceiptBody:
+      type: object
+      properties:
+        itemId:
+          type: integer
+        quantity:
+          type: number
+        pricePerUnit:
+          type: number
+        supplier:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - itemId
+        - quantity
+        - pricePerUnit
+
+    WriteOff:
+      type: object
+      properties:
+        id:
+          type: integer
+        itemId:
+          type: integer
+        itemName:
+          type: ["string", "null"]
+        quantity:
+          type: number
+        reason:
+          type: string
+        staffId:
+          type: ["integer", "null"]
+        staffName:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        recordedByClerkId:
+          type: ["string", "null"]
+        totalValue:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - itemId
+        - quantity
+        - reason
+        - totalValue
+        - createdAt
+
+    CreateWriteOffBody:
+      type: object
+      properties:
+        itemId:
+          type: integer
+        quantity:
+          type: number
+        reason:
+          type: string
+        staffId:
+          type: ["integer", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - itemId
+        - quantity
+        - reason
+
+    InventoryAudit:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        status:
+          type: string
+          enum: [draft, submitted]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditItem"
+        createdAt:
+          type: string
+          format: date-time
+        submittedAt:
+          type: ["string", "null"]
+      required:
+        - id
+        - title
+        - status
+        - items
+        - createdAt
+
+    AuditItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        auditId:
+          type: integer
+        itemId:
+          type: integer
+        itemName:
+          type: ["string", "null"]
+        systemStock:
+          type: number
+        actualStock:
+          type: ["number", "null"]
+        discrepancy:
+          type: ["number", "null"]
+      required:
+        - id
+        - auditId
+        - itemId
+        - systemStock
+
+    CreateInventoryAuditBody:
+      type: object
+      properties:
+        title:
+          type: string
+        categoryId:
+          type: ["integer", "null"]
+      required:
+        - title
+
+    UpdateInventoryAuditBody:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              itemId:
+                type: integer
+              actualStock:
+                type: number
+            required:
+              - itemId
+              - actualStock
+      required:
+        - items
+
+    StaffMember:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        position:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - isActive
+        - createdAt
+
+    CreateStaffMemberBody:
+      type: object
+      properties:
+        name:
+          type: string
+        position:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+      required:
+        - name
+
+    UpdateStaffMemberBody:
+      type: object
+      properties:
+        name:
+          type: string
+        position:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+
+    AnalyticsSummary:
+      type: object
+      properties:
+        totalItems:
+          type: integer
+        totalStockValue:
+          type: number
+        lowStockCount:
+          type: integer
+        totalReceiptsThisMonth:
+          type: number
+        totalWriteOffsThisMonth:
+          type: number
+        receiptsTrend:
+          type: number
+        writeOffsTrend:
+          type: number
+      required:
+        - totalItems
+        - totalStockValue
+        - lowStockCount
+        - totalReceiptsThisMonth
+        - totalWriteOffsThisMonth
+        - receiptsTrend
+        - writeOffsTrend
+
+    CategoryBreakdownItem:
+      type: object
+      properties:
+        categoryId:
+          type: integer
+        categoryName:
+          type: string
+        totalValue:
+          type: number
+        itemCount:
+          type: integer
+      required:
+        - categoryId
+        - categoryName
+        - totalValue
+        - itemCount
+
+    SpendingDataPoint:
+      type: object
+      properties:
+        period:
+          type: string
+        receipts:
+          type: number
+        writeOffs:
+          type: number
+      required:
+        - period
+        - receipts
+        - writeOffs
+
+    TopWriteOffItem:
+      type: object
+      properties:
+        itemId:
+          type: integer
+        itemName:
+          type: string
+        totalQuantity:
+          type: number
+        totalValue:
+          type: number
+        writeOffCount:
+          type: integer
+      required:
+        - itemId
+        - itemName
+        - totalQuantity
+        - totalValue
+        - writeOffCount
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: ["integer", "null"]
+        clerkUserId:
+          type: ["string", "null"]
+        details:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - action
+        - entityType
+        - createdAt
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+      required:
+        - name
+        - size
+        - contentType
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+      required:
+        - uploadURL
+        - objectPath
