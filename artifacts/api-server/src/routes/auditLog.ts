@@ -7,7 +7,7 @@ import { requireRole } from "../middleware/rbac";
 
 const router: IRouter = Router();
 
-router.get("/audit-log", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+router.get("/audit-log", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const limit = Math.min(Number(req.query.limit ?? 50), 200);
   const offset = Number(req.query.offset ?? 0);
 

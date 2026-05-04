@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { staffTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
+import { requireRole } from "../middleware/rbac";
 
 const router: IRouter = Router();
 
@@ -12,7 +13,7 @@ router.get("/staff", requireAuth(), async (req: Request, res: Response) => {
   res.json(rows);
 });
 
-router.post("/staff", requireAuth(), async (req: Request, res: Response) => {
+router.post("/staff", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
   const { name, position, phone, isActive } = req.body;
   if (!name) { res.status(400).json({ error: "name required" }); return; }
   const [row] = await db.insert(staffTable).values({ name, position, phone, isActive: isActive ?? true }).returning();
@@ -20,7 +21,7 @@ router.post("/staff", requireAuth(), async (req: Request, res: Response) => {
   res.status(201).json(row);
 });
 
-router.patch("/staff/:id", requireAuth(), async (req: Request, res: Response) => {
+router.patch("/staff/:id", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const { name, position, phone, isActive } = req.body;
   const updates: Record<string, unknown> = {};
@@ -35,7 +36,7 @@ router.patch("/staff/:id", requireAuth(), async (req: Request, res: Response) =>
   res.json(row);
 });
 
-router.delete("/staff/:id", requireAuth(), async (req: Request, res: Response) => {
+router.delete("/staff/:id", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const [row] = await db.delete(staffTable).where(eq(staffTable.id, id)).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }

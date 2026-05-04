@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { itemsTable, categoriesTable, writeOffsTable, staffTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, gte, lte } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { requireRole } from "../middleware/rbac";
 
@@ -50,8 +50,8 @@ router.get("/export/stock", requireAuth(), requireRole("admin", "manager", "acco
 router.get("/export/write-offs", requireAuth(), requireRole("admin", "manager", "accountant"), async (req: Request, res: Response) => {
   const { from, to } = req.query;
   const conditions = [];
-  if (from) conditions.push(sql`${writeOffsTable.createdAt} >= ${new Date(String(from))}`);
-  if (to) conditions.push(sql`${writeOffsTable.createdAt} <= ${new Date(String(to))}`);
+  if (from) conditions.push(gte(writeOffsTable.createdAt, new Date(String(from))));
+  if (to) conditions.push(lte(writeOffsTable.createdAt, new Date(String(to))));
 
   const rows = await db
     .select({
@@ -66,6 +66,7 @@ router.get("/export/write-offs", requireAuth(), requireRole("admin", "manager", 
     .from(writeOffsTable)
     .leftJoin(itemsTable, eq(writeOffsTable.itemId, itemsTable.id))
     .leftJoin(staffTable, eq(writeOffsTable.staffId, staffTable.id))
+    .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(sql`${writeOffsTable.createdAt} DESC`);
 
   const data = rows.map((r) => ({

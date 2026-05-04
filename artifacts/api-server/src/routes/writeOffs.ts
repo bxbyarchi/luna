@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { writeOffsTable, itemsTable, staffTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
+import { requireRole } from "../middleware/rbac";
 
 const router: IRouter = Router();
 
@@ -38,7 +39,7 @@ router.get("/write-offs", requireAuth(), async (req: Request, res: Response) => 
   res.json(rows);
 });
 
-router.post("/write-offs", requireAuth(), async (req: Request, res: Response) => {
+router.post("/write-offs", requireAuth(), requireRole("admin", "manager", "warehouse"), async (req: Request, res: Response) => {
   const { itemId, quantity, reason, staffId, photoUrl, notes } = req.body;
   if (!itemId || !quantity || !reason) {
     res.status(400).json({ error: "itemId, quantity, reason required" });

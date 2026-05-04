@@ -4,6 +4,12 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
+interface ClerkUserResponse {
+  email_addresses?: Array<{ email_address?: string }>;
+  first_name?: string | null;
+  last_name?: string | null;
+}
+
 const router: IRouter = Router();
 
 router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
@@ -18,11 +24,10 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
   });
 
   if (!user) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const clerkUser: any = await fetch(
+    const clerkUser = await fetch(
       `https://api.clerk.com/v1/users/${clerkUserId}`,
       { headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` } }
-    ).then((r) => r.json());
+    ).then((r) => r.json() as Promise<ClerkUserResponse>);
 
     const email =
       clerkUser?.email_addresses?.[0]?.email_address ?? `${clerkUserId}@unknown`;

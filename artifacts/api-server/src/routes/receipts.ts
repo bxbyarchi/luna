@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { receiptsTable, itemsTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
+import { requireRole } from "../middleware/rbac";
 
 const router: IRouter = Router();
 
@@ -35,7 +36,7 @@ router.get("/receipts", requireAuth(), async (req: Request, res: Response) => {
   res.json(rows);
 });
 
-router.post("/receipts", requireAuth(), async (req: Request, res: Response) => {
+router.post("/receipts", requireAuth(), requireRole("admin", "manager", "warehouse"), async (req: Request, res: Response) => {
   const { itemId, quantity, pricePerUnit, supplier, photoUrl, notes } = req.body;
   if (!itemId || !quantity || !pricePerUnit) {
     res.status(400).json({ error: "itemId, quantity, pricePerUnit required" });
