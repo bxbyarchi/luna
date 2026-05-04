@@ -16,6 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const staffSchema = z.object({
   name: z.string().min(1, "Имя обязательно"),
@@ -32,6 +33,7 @@ export default function Staff() {
   const [editing, setEditing] = useState<StaffMember | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { canDo } = useCurrentUser();
   const create = useCreateStaffMember();
   const update = useUpdateStaffMember();
   const remove = useDeleteStaffMember();
@@ -83,9 +85,11 @@ export default function Staff() {
           <h1 className="text-2xl font-bold tracking-tight">Сотрудники</h1>
           <p className="text-muted-foreground text-sm">Справочник персонала.</p>
         </div>
-        <Button onClick={openCreate} data-testid="btn-create-staff">
-          <Plus className="mr-2 h-4 w-4" /> Добавить
-        </Button>
+        {canDo("manager") && (
+          <Button onClick={openCreate} data-testid="btn-create-staff">
+            <Plus className="mr-2 h-4 w-4" /> Добавить
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -97,7 +101,7 @@ export default function Staff() {
                 <TableHead>Должность</TableHead>
                 <TableHead>Телефон</TableHead>
                 <TableHead>Статус</TableHead>
-                <TableHead className="text-right">Действия</TableHead>
+                {canDo("manager") && <TableHead className="text-right">Действия</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -116,10 +120,12 @@ export default function Staff() {
                         {m.isActive ? "Активен" : "Неактивен"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(m as StaffMember)} data-testid={`btn-edit-staff-${m.id}`}><Edit className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(m.id)} data-testid={`btn-delete-staff-${m.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </TableCell>
+                    {canDo("manager") && (
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(m as StaffMember)} data-testid={`btn-edit-staff-${m.id}`}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(m.id)} data-testid={`btn-delete-staff-${m.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}

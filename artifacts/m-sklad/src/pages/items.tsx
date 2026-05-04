@@ -16,8 +16,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, Plus, Edit, Trash2, AlertTriangle } from "lucide-react";
+import { Search, Plus, Edit, Trash2, AlertTriangle, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { PhotoUploader } from "@/components/PhotoUploader";
 
 const itemSchema = z.object({
   name: z.string().min(1, "Название обязательно"),
@@ -28,13 +30,14 @@ const itemSchema = z.object({
   minThreshold: z.string().optional(),
   pricePerUnit: z.string().optional(),
   notes: z.string().optional(),
+  photoUrl: z.string().nullable().optional(),
 });
 type ItemFormData = z.infer<typeof itemSchema>;
 
 type ItemRow = {
   id: number; name: string; categoryId: number; categoryName?: string | null;
   unit: string; location?: string | null; currentStock: number | string; minThreshold?: number | string | null;
-  pricePerUnit: number | string; isBelowThreshold: boolean; notes?: string | null;
+  pricePerUnit: number | string; isBelowThreshold: boolean; notes?: string | null; photoUrl?: string | null;
 };
 
 export default function Items() {
@@ -43,6 +46,7 @@ export default function Items() {
   const [editing, setEditing] = useState<ItemRow | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { canDo } = useCurrentUser();
 
   const { data: items, isLoading } = useListItems(
     { search: search || undefined },
@@ -55,12 +59,12 @@ export default function Items() {
 
   const form = useForm<ItemFormData>({
     resolver: zodResolver(itemSchema),
-    defaultValues: { name: "", categoryId: "", unit: "шт", location: "", currentStock: "0", minThreshold: "", pricePerUnit: "0", notes: "" },
+    defaultValues: { name: "", categoryId: "", unit: "шт", location: "", currentStock: "0", minThreshold: "", pricePerUnit: "0", notes: "", photoUrl: null },
   });
 
   function openCreate() {
     setEditing(null);
-    form.reset({ name: "", categoryId: "", unit: "шт", location: "", currentStock: "0", minThreshold: "", pricePerUnit: "0", notes: "" });
+    form.reset({ name: "", categoryId: "", unit: "шт", location: "", currentStock: "0", minThreshold: "", pricePerUnit: "0", notes: "", photoUrl: null });
     setOpen(true);
   }
 
@@ -75,6 +79,7 @@ export default function Items() {
       minThreshold: item.minThreshold != null ? String(item.minThreshold) : "",
       pricePerUnit: String(item.pricePerUnit),
       notes: item.notes ?? "",
+      photoUrl: item.photoUrl ?? null,
     });
     setOpen(true);
   }
@@ -89,6 +94,7 @@ export default function Items() {
       minThreshold: data.minThreshold ? Number(data.minThreshold) : null,
       pricePerUnit: Number(data.pricePerUnit || 0),
       notes: data.notes || null,
+      photoUrl: data.photoUrl ?? null,
     };
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
@@ -115,6 +121,8 @@ export default function Items() {
     });
   }
 
+  const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -122,9 +130,11 @@ export default function Items() {
           <h1 className="text-2xl font-bold tracking-tight">Позиции склада</h1>
           <p className="text-muted-foreground text-sm">Все материальные ценности.</p>
         </div>
-        <Button onClick={openCreate} data-testid="btn-create-item">
-          <Plus className="mr-2 h-4 w-4" /> Добавить
-        </Button>
+        {canDo("manager") && (
+          <Button onClick={openCreate} data-testid="btn-create-item">
+            <Plus className="mr-2 h-4 w-4" /> Добавить
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -151,7 +161,7 @@ export default function Items() {
                 <TableHead className="text-right">Остаток</TableHead>
                 <TableHead className="text-right">Цена</TableHead>
                 <TableHead>Статус</TableHead>
-                <TableHead className="text-right">Действия</TableHead>
+                {canDo("manager") && <TableHead className="text-right">Действия</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -166,6 +176,11 @@ export default function Items() {
                       <div className="flex items-center gap-2">
                         {item.isBelowThreshold && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
                         {item.name}
+                        {item.photoUrl && (
+                          <a href={`${BASE}/api/storage/objects/${item.photoUrl.replace(/^\/objects\//, "")}`} target="_blank" rel="noreferrer" title="Фото">
+                            <ImageIcon className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
+                          </a>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>{item.categoryName ?? "—"}</TableCell>
@@ -179,10 +194,12 @@ export default function Items() {
                         <Badge variant="outline" className="text-xs text-emerald-700 bg-emerald-50 border-emerald-200">Норма</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(item)} data-testid={`btn-edit-item-${item.id}`}><Edit className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} data-testid={`btn-delete-item-${item.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </TableCell>
+                    {canDo("manager") && (
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(item)} data-testid={`btn-edit-item-${item.id}`}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} data-testid={`btn-delete-item-${item.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -228,6 +245,14 @@ export default function Items() {
                 <FormField control={form.control} name="notes" render={({ field }) => (
                   <FormItem className="col-span-2"><FormLabel>Примечания</FormLabel><FormControl><Input placeholder="Доп. информация" {...field} data-testid="input-item-notes" /></FormControl><FormMessage /></FormItem>
                 )} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium leading-none">Фото позиции</label>
+                <PhotoUploader
+                  value={form.watch("photoUrl")}
+                  onChange={(path) => form.setValue("photoUrl", path)}
+                  label="Загрузить фото"
+                />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>Отмена</Button>

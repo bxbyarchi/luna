@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
+import { requireRole } from "../middleware/rbac";
 import { Readable } from "stream";
 import {
   RequestUploadUrlBody,
@@ -84,7 +85,7 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
  * Serve private object entities from PRIVATE_OBJECT_DIR.
  * Requires authentication — only signed-in users may retrieve uploaded files.
  */
-router.get("/storage/objects/*path", requireAuth(), async (req: Request, res: Response) => {
+router.get("/storage/objects/*path", requireRole("warehouse"), async (req: Request, res: Response) => {
   try {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;

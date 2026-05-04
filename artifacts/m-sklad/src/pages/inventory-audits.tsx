@@ -4,6 +4,7 @@ import {
   useUpdateInventoryAudit, useSubmitInventoryAudit,
   getListInventoryAuditsQueryKey, getGetInventoryAuditQueryKey,
 } from "@workspace/api-client-react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -26,6 +27,7 @@ export default function InventoryAudits() {
   const [counts, setCounts] = useState<Record<number, string>>({});
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { canDo } = useCurrentUser();
 
   const create = useCreateInventoryAudit();
   const updateAudit = useUpdateInventoryAudit();
@@ -91,26 +93,28 @@ export default function InventoryAudits() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Новая инвентаризация</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Название, напр. «Ревизия май 2026»"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-              className="max-w-sm"
-              data-testid="input-audit-title"
-            />
-            <Button onClick={handleCreate} disabled={!newTitle.trim() || create.isPending} data-testid="btn-create-audit">
-              <Plus className="mr-2 h-4 w-4" /> Создать
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {canDo("manager") && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Новая инвентаризация</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Название, напр. «Ревизия май 2026»"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                className="max-w-sm"
+                data-testid="input-audit-title"
+              />
+              <Button onClick={handleCreate} disabled={!newTitle.trim() || create.isPending} data-testid="btn-create-audit">
+                <Plus className="mr-2 h-4 w-4" /> Создать
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-0">
@@ -209,9 +213,11 @@ export default function InventoryAudits() {
                   <Button variant="outline" onClick={handleSave} disabled={updateAudit.isPending} data-testid="btn-save-audit">
                     Сохранить
                   </Button>
-                  <Button onClick={handleSubmit} disabled={submitAudit.isPending} data-testid="btn-submit-audit">
-                    Завершить инвентаризацию
-                  </Button>
+                  {canDo("manager") && (
+                    <Button onClick={handleSubmit} disabled={submitAudit.isPending} data-testid="btn-submit-audit">
+                      Завершить инвентаризацию
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

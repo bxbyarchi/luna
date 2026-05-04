@@ -8,6 +8,7 @@ interface ClerkUserResponse {
   email_addresses?: Array<{ email_address?: string }>;
   first_name?: string | null;
   last_name?: string | null;
+  public_metadata?: { role?: string };
 }
 
 const router: IRouter = Router();
@@ -39,12 +40,19 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
 
     const isFirstUser = Number(userCount) === 0;
 
+    const validRoles = ["admin", "manager", "accountant", "warehouse"] as const;
+    type AppRole = typeof validRoles[number];
+    const metaRole = clerkUser?.public_metadata?.role;
+    const role: AppRole = validRoles.includes(metaRole as AppRole)
+      ? (metaRole as AppRole)
+      : isFirstUser ? "admin" : "warehouse";
+
     [user] = await db
       .insert(usersTable)
       .values({
         clerkUserId,
         email,
-        role: isFirstUser ? "admin" : "warehouse",
+        role,
         firstName: clerkUser?.first_name ?? null,
         lastName: clerkUser?.last_name ?? null,
       })

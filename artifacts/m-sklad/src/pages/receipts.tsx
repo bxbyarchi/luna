@@ -3,6 +3,7 @@ import {
   useListReceipts, useCreateReceipt, useListItems,
   getListReceiptsQueryKey, getListItemsQueryKey,
 } from "@workspace/api-client-react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -35,6 +36,7 @@ export default function Receipts() {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { canDo } = useCurrentUser();
 
   const { data: receipts, isLoading } = useListReceipts(undefined, { query: { queryKey: getListReceiptsQueryKey() } });
   const { data: items } = useListItems(undefined, { query: { queryKey: getListItemsQueryKey() } });
@@ -76,9 +78,11 @@ export default function Receipts() {
           <h1 className="text-2xl font-bold tracking-tight">Поступления</h1>
           <p className="text-muted-foreground text-sm">Входящие поставки и оприходование.</p>
         </div>
-        <Button onClick={() => { form.reset(); setOpen(true); }} data-testid="btn-create-receipt">
-          <Plus className="mr-2 h-4 w-4" /> Оприходовать
-        </Button>
+        {canDo("warehouse") && (
+          <Button onClick={() => { form.reset(); setOpen(true); }} data-testid="btn-create-receipt">
+            <Plus className="mr-2 h-4 w-4" /> Оприходовать
+          </Button>
+        )}
       </div>
 
       <Card>

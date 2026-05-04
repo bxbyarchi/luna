@@ -15,6 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const CYRILLIC_MAP: Record<string, string> = {
   а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "zh",
@@ -49,6 +50,7 @@ export default function Categories() {
   const [editing, setEditing] = useState<Category | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { canDo } = useCurrentUser();
   const create = useCreateCategory();
   const update = useUpdateCategory();
   const remove = useDeleteCategory();
@@ -108,9 +110,11 @@ export default function Categories() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="heading-categories">Категории</h1>
           <p className="text-muted-foreground text-sm">Группы классификации позиций.</p>
         </div>
-        <Button onClick={openCreate} data-testid="btn-create-category">
-          <Plus className="mr-2 h-4 w-4" /> Добавить
-        </Button>
+        {canDo("manager") && (
+          <Button onClick={openCreate} data-testid="btn-create-category">
+            <Plus className="mr-2 h-4 w-4" /> Добавить
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -121,7 +125,7 @@ export default function Categories() {
                 <TableHead>Название</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Описание</TableHead>
-                <TableHead className="text-right">Действия</TableHead>
+                {canDo("manager") && <TableHead className="text-right">Действия</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -135,10 +139,12 @@ export default function Categories() {
                     <TableCell className="font-medium">{cat.name}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{cat.slug}</TableCell>
                     <TableCell className="text-muted-foreground">{cat.description ?? "—"}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(cat)} data-testid={`btn-edit-cat-${cat.id}`}><Edit className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(cat.id)} data-testid={`btn-delete-cat-${cat.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </TableCell>
+                    {canDo("manager") && (
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(cat)} data-testid={`btn-edit-cat-${cat.id}`}><Edit className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(cat.id)} data-testid={`btn-delete-cat-${cat.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
