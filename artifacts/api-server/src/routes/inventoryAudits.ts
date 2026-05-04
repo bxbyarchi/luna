@@ -68,6 +68,10 @@ router.patch("/inventory-audits/:id", requireAuth(), requireRole("admin", "manag
   const { items } = req.body;
   if (!Array.isArray(items)) { res.status(400).json({ error: "items array required" }); return; }
 
+  const existing = await db.query.inventoryAuditsTable.findFirst({ where: eq(inventoryAuditsTable.id, id) });
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.status === "submitted") { res.status(409).json({ error: "Инвентаризация уже завершена" }); return; }
+
   for (const item of items) {
     if (item.itemId !== undefined && item.actualStock !== undefined) {
       await db
