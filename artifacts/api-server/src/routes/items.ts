@@ -5,6 +5,7 @@ import { itemsTable, categoriesTable } from "@workspace/db";
 import { eq, sql, and, ilike } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
 import { requireRole } from "../middleware/rbac";
+import { sendLowStockAlert } from "../lib/telegramBot";
 
 const router: IRouter = Router();
 
@@ -96,6 +97,13 @@ router.patch("/items/:id", requireAuth(), requireRole("admin", "manager"), async
   const [row] = await db.update(itemsTable).set(updates).where(eq(itemsTable.id, id)).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   await logAudit({ action: "update", entityType: "item", entityId: id, clerkUserId: req.auth?.userId });
+  if (
+    currentStock !== undefined &&
+    row.minThreshold !== null &&
+    Number(row.currentStock) <= Number(row.minThreshold)
+  ) {
+    sendLowStockAlert(row.name, Number(row.currentStock), Number(row.minThreshold), row.unit ?? "ед.").catch(() => {});
+  }
   res.json(row);
 });
 

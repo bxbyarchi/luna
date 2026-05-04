@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, TrendingUp, TrendingDown, Package, AlertTriangle, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend,
@@ -42,6 +43,7 @@ function TrendBadge({ value }: { value: number }) {
 
 export default function Dashboard() {
   const [period, setPeriod] = useState<Period>("month");
+  const { canDo } = useCurrentUser();
 
   const { data: summary, isLoading: loadingSummary } = useGetAnalyticsSummary({
     query: { queryKey: getGetAnalyticsSummaryQueryKey() },
@@ -77,14 +79,16 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="heading-dashboard">Командный центр</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Обзор операций и ключевые показатели.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleExportStock} data-testid="btn-export-stock">
-            <Download className="mr-2 h-4 w-4" /> Остатки
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportWriteOffs} data-testid="btn-export-writeoffs">
-            <Download className="mr-2 h-4 w-4" /> Списания
-          </Button>
-        </div>
+        {canDo("admin") && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleExportStock} data-testid="btn-export-stock">
+              <Download className="mr-2 h-4 w-4" /> Остатки
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportWriteOffs} data-testid="btn-export-writeoffs">
+              <Download className="mr-2 h-4 w-4" /> Списания
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

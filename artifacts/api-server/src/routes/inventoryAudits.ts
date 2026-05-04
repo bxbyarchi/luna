@@ -5,6 +5,7 @@ import { inventoryAuditsTable, auditItemsTable, itemsTable } from "@workspace/db
 import { eq, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
 import { requireRole } from "../middleware/rbac";
+import { sendLowStockAlert } from "../lib/telegramBot";
 
 const router: IRouter = Router();
 
@@ -97,10 +98,18 @@ router.post("/inventory-audits/:id/submit", requireAuth(), requireRole("admin", 
 
   for (const auditItem of auditItems) {
     if (auditItem.actualStock !== null) {
-      await db
+      const [updatedItem] = await db
         .update(itemsTable)
         .set({ currentStock: String(auditItem.actualStock) })
-        .where(eq(itemsTable.id, auditItem.itemId));
+        .where(eq(itemsTable.id, auditItem.itemId))
+        .returning();
+      if (
+        updatedItem &&
+        updatedItem.minThreshold !== null &&
+        Number(updatedItem.currentStock) <= Number(updatedItem.minThreshold)
+      ) {
+        sendLowStockAlert(updatedItem.name, Number(updatedItem.currentStock), Number(updatedItem.minThreshold), updatedItem.unit ?? "ед.").catch(() => {});
+      }
     }
   }
 
