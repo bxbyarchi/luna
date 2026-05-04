@@ -5,6 +5,7 @@ import { writeOffsTable, itemsTable, staffTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
 import { requireRole } from "../middleware/rbac";
+import { sendLowStockAlert } from "../lib/telegramBot";
 
 const router: IRouter = Router();
 
@@ -54,7 +55,7 @@ router.post("/write-offs", requireAuth(), requireRole("admin", "manager", "wareh
     quantity: String(Number(quantity)),
     reason,
     staffId: staffId ? Number(staffId) : null,
-    photoUrl,
+    photoUrl: photoUrl || null,
     notes,
     totalValue: String(totalValue),
     recordedByClerkId: req.auth?.userId,
@@ -64,6 +65,15 @@ router.post("/write-offs", requireAuth(), requireRole("admin", "manager", "wareh
     .update(itemsTable)
     .set({ currentStock: sql`GREATEST(0, CAST(${itemsTable.currentStock} AS DECIMAL) - ${Number(quantity)})` })
     .where(eq(itemsTable.id, Number(itemId)));
+
+  const [updated] = await db
+    .select({ currentStock: itemsTable.currentStock, minThreshold: itemsTable.minThreshold, name: itemsTable.name, unit: itemsTable.unit })
+    .from(itemsTable)
+    .where(eq(itemsTable.id, Number(itemId)));
+
+  if (updated?.minThreshold && Number(updated.currentStock) <= Number(updated.minThreshold)) {
+    void sendLowStockAlert(updated.name, Number(updated.currentStock), Number(updated.minThreshold), updated.unit);
+  }
 
   await logAudit({ action: "create", entityType: "write_off", entityId: row.id, clerkUserId: req.auth?.userId });
   res.status(201).json(row);

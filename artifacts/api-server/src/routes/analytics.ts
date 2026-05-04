@@ -135,7 +135,7 @@ router.get("/analytics/top-write-offs", requireAuth(), async (req: Request, res:
     itemName: r.itemName ?? "Unknown",
     totalQuantity: Number(r.totalQuantity),
     totalValue: Number(r.totalValue),
-    count: r.count,
+    writeOffCount: r.count,
   })));
 });
 

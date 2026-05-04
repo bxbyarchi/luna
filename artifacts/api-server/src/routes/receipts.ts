@@ -5,6 +5,7 @@ import { receiptsTable, itemsTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
 import { requireRole } from "../middleware/rbac";
+import { sendLowStockAlert } from "../lib/telegramBot";
 
 const router: IRouter = Router();
 
@@ -52,7 +53,7 @@ router.post("/receipts", requireAuth(), requireRole("admin", "manager", "warehou
     pricePerUnit: String(price),
     totalCost: String(total),
     supplier,
-    photoUrl,
+    photoUrl: photoUrl || null,
     notes,
     recordedByClerkId: req.auth?.userId,
   }).returning();
@@ -61,6 +62,15 @@ router.post("/receipts", requireAuth(), requireRole("admin", "manager", "warehou
     .update(itemsTable)
     .set({ currentStock: sql`CAST(${itemsTable.currentStock} AS DECIMAL) + ${qty}` })
     .where(eq(itemsTable.id, Number(itemId)));
+
+  const [updated] = await db
+    .select({ currentStock: itemsTable.currentStock, minThreshold: itemsTable.minThreshold, name: itemsTable.name, unit: itemsTable.unit })
+    .from(itemsTable)
+    .where(eq(itemsTable.id, Number(itemId)));
+
+  if (updated?.minThreshold && Number(updated.currentStock) <= Number(updated.minThreshold)) {
+    void sendLowStockAlert(updated.name, Number(updated.currentStock), Number(updated.minThreshold), updated.unit);
+  }
 
   await logAudit({ action: "create", entityType: "receipt", entityId: row.id, clerkUserId: req.auth?.userId });
   res.status(201).json(row);

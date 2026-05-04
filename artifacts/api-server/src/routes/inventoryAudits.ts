@@ -79,6 +79,7 @@ router.patch("/inventory-audits/:id", requireAuth(), requireRole("admin", "manag
   }
 
   const audit = await db.query.inventoryAuditsTable.findFirst({ where: eq(inventoryAuditsTable.id, id) });
+  await logAudit({ action: "update", entityType: "inventory_audit", entityId: id, clerkUserId: req.auth?.userId, details: `Saved ${items.filter((i) => i.actualStock !== undefined).length} counts` });
   res.json(audit);
 });
 

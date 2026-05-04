@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { initTelegramBot } from "./lib/telegramBot";
 
 const app: Express = express();
 
@@ -32,5 +33,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 
 app.use("/api", router);
+
+initTelegramBot();
 
 export default app;

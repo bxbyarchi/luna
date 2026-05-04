@@ -14,8 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus } from "lucide-react";
+import { Plus, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PhotoUploader } from "@/components/PhotoUploader";
 
 const REASONS = [
   "Бой/повреждение",
@@ -32,10 +33,11 @@ const writeOffSchema = z.object({
   reason: z.string().min(1, "Причина обязательна"),
   staffId: z.string().optional(),
   notes: z.string().optional(),
+  photoUrl: z.string().nullable().optional(),
 });
 type WriteOffFormData = z.infer<typeof writeOffSchema>;
 
-type WriteOffRow = { id: number; itemId: number; itemName?: string | null; quantity: number | string; reason: string; staffId?: number | null; staffName?: string | null; totalValue: number | string; createdAt: string };
+type WriteOffRow = { id: number; itemId: number; itemName?: string | null; quantity: number | string; reason: string; staffId?: number | null; staffName?: string | null; photoUrl?: string | null; totalValue: number | string; createdAt: string };
 type ItemOption = { id: number; name: string; unit: string };
 type StaffOption = { id: number; name: string };
 
@@ -51,7 +53,7 @@ export default function WriteOffs() {
 
   const form = useForm<WriteOffFormData>({
     resolver: zodResolver(writeOffSchema),
-    defaultValues: { itemId: "", quantity: "", reason: "", staffId: "", notes: "" },
+    defaultValues: { itemId: "", quantity: "", reason: "", staffId: "", notes: "", photoUrl: null },
   });
 
   const selectedItemId = form.watch("itemId");
@@ -65,6 +67,7 @@ export default function WriteOffs() {
         reason: data.reason,
         staffId: data.staffId ? Number(data.staffId) : null,
         notes: data.notes || null,
+        photoUrl: data.photoUrl || null,
       }
     }, {
       onSuccess: () => {
@@ -100,13 +103,14 @@ export default function WriteOffs() {
                 <TableHead>Сотрудник</TableHead>
                 <TableHead className="text-right">Количество</TableHead>
                 <TableHead className="text-right">Сумма</TableHead>
+                <TableHead className="text-center">Фото</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Загрузка...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Загрузка...</TableCell></TableRow>
               ) : !writeOffs?.length ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Нет списаний</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Нет списаний</TableCell></TableRow>
               ) : (
                 (writeOffs as unknown as WriteOffRow[]).map((wo) => (
                   <TableRow key={wo.id} data-testid={`row-writeoff-${wo.id}`}>
@@ -116,6 +120,13 @@ export default function WriteOffs() {
                     <TableCell className="text-muted-foreground">{wo.staffName ?? "—"}</TableCell>
                     <TableCell className="text-right">{Number(wo.quantity).toFixed(2)}</TableCell>
                     <TableCell className="text-right font-semibold text-destructive">−{Number(wo.totalValue).toFixed(2)} ₽</TableCell>
+                    <TableCell className="text-center">
+                      {wo.photoUrl ? (
+                        <a href={`/api/storage/objects/${wo.photoUrl.replace(/^\/objects\//, "")}`} target="_blank" rel="noopener noreferrer">
+                          <ImageIcon className="h-4 w-4 text-primary mx-auto" />
+                        </a>
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -166,6 +177,14 @@ export default function WriteOffs() {
               <FormField control={form.control} name="notes" render={({ field }) => (
                 <FormItem><FormLabel>Примечания</FormLabel><FormControl><Input placeholder="Дополнительная информация" {...field} data-testid="input-wo-notes" /></FormControl><FormMessage /></FormItem>
               )} />
+              <div className="space-y-2">
+                <label className="text-sm font-medium leading-none">Фото повреждения</label>
+                <PhotoUploader
+                  value={form.watch("photoUrl")}
+                  onChange={(path) => form.setValue("photoUrl", path)}
+                  label="Сфотографировать ущерб"
+                />
+              </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
                 <Button type="submit" variant="destructive" disabled={create.isPending} data-testid="btn-submit-writeoff">Списать</Button>

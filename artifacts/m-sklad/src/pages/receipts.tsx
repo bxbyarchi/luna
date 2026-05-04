@@ -14,8 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus } from "lucide-react";
+import { Plus, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PhotoUploader } from "@/components/PhotoUploader";
 
 const receiptSchema = z.object({
   itemId: z.string().min(1, "Позиция обязательна"),
@@ -23,10 +24,11 @@ const receiptSchema = z.object({
   pricePerUnit: z.string().min(1, "Цена обязательна"),
   supplier: z.string().optional(),
   notes: z.string().optional(),
+  photoUrl: z.string().nullable().optional(),
 });
 type ReceiptFormData = z.infer<typeof receiptSchema>;
 
-type Receipt = { id: number; itemId: number; itemName?: string | null; quantity: number | string; pricePerUnit: number | string; totalCost: number | string; supplier?: string | null; createdAt: string };
+type Receipt = { id: number; itemId: number; itemName?: string | null; quantity: number | string; pricePerUnit: number | string; totalCost: number | string; supplier?: string | null; photoUrl?: string | null; createdAt: string };
 type ItemOption = { id: number; name: string; unit: string; pricePerUnit: string };
 
 export default function Receipts() {
@@ -40,7 +42,7 @@ export default function Receipts() {
 
   const form = useForm<ReceiptFormData>({
     resolver: zodResolver(receiptSchema),
-    defaultValues: { itemId: "", quantity: "", pricePerUnit: "", supplier: "", notes: "" },
+    defaultValues: { itemId: "", quantity: "", pricePerUnit: "", supplier: "", notes: "", photoUrl: null },
   });
 
   const selectedItemId = form.watch("itemId");
@@ -54,6 +56,7 @@ export default function Receipts() {
         pricePerUnit: Number(data.pricePerUnit),
         supplier: data.supplier || null,
         notes: data.notes || null,
+        photoUrl: data.photoUrl || null,
       }
     }, {
       onSuccess: () => {
@@ -89,13 +92,14 @@ export default function Receipts() {
                 <TableHead className="text-right">Количество</TableHead>
                 <TableHead className="text-right">Цена за ед.</TableHead>
                 <TableHead className="text-right">Итого</TableHead>
+                <TableHead className="text-center">Фото</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Загрузка...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Загрузка...</TableCell></TableRow>
               ) : !receipts?.length ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Нет поступлений</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Нет поступлений</TableCell></TableRow>
               ) : (
                 (receipts as unknown as Receipt[]).map((r) => (
                   <TableRow key={r.id} data-testid={`row-receipt-${r.id}`}>
@@ -105,6 +109,13 @@ export default function Receipts() {
                     <TableCell className="text-right">{Number(r.quantity).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{Number(r.pricePerUnit).toFixed(2)} ₽</TableCell>
                     <TableCell className="text-right font-semibold text-emerald-700">{Number(r.totalCost).toFixed(2)} ₽</TableCell>
+                    <TableCell className="text-center">
+                      {r.photoUrl ? (
+                        <a href={`/api/storage/objects/${r.photoUrl.replace(/^\/objects\//, "")}`} target="_blank" rel="noopener noreferrer">
+                          <ImageIcon className="h-4 w-4 text-primary mx-auto" />
+                        </a>
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -146,6 +157,14 @@ export default function Receipts() {
               <FormField control={form.control} name="notes" render={({ field }) => (
                 <FormItem><FormLabel>Примечания</FormLabel><FormControl><Input placeholder="Дополнительная информация" {...field} data-testid="input-receipt-notes" /></FormControl><FormMessage /></FormItem>
               )} />
+              <div className="space-y-2">
+                <label className="text-sm font-medium leading-none">Фото поставки</label>
+                <PhotoUploader
+                  value={form.watch("photoUrl")}
+                  onChange={(path) => form.setValue("photoUrl", path)}
+                  label="Сфотографировать накладную"
+                />
+              </div>
               {form.watch("quantity") && form.watch("pricePerUnit") && (
                 <div className="rounded-lg bg-muted px-4 py-3 text-sm">
                   <span className="text-muted-foreground">Итого: </span>
