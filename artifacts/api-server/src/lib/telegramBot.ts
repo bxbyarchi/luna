@@ -83,7 +83,7 @@ async function getUserRole(chatId: number): Promise<string | null> {
 }
 
 function roleLabel(role: string) {
-  return ({ admin: "Завхоз", manager: "Управляющий", accountant: "Бухгалтер", warehouse: "Кладовщик" })[role] ?? role;
+  return ({ admin: "Завхоз", manager: "Управляющий", accountant: "Бухгалтер", warehouse: "Кладовщик" } as Record<string, string>)[role] ?? role;
 }
 
 function fmt(n: number) {

@@ -16,18 +16,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { User, Building2, Shield, MessageCircle, CheckCircle, XCircle, Save, Link, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: "Админ",
-  manager: "Управляющая",
+  admin: "Завхоз",
+  manager: "Управляющий",
   accountant: "Бухгалтер",
-  warehouse: "Завхоз",
+  warehouse: "Кладовщик",
 };
 
 const CURRENCIES = [
   { value: "KGS", label: "Сом (KGS)" },
-  { value: "RUB", label: "Рубль (RUB)" },
-  { value: "USD", label: "Доллар (USD)" },
-  { value: "EUR", label: "Евро (EUR)" },
-  { value: "KZT", label: "Тенге (KZT)" },
 ];
 
 const TIMEZONES = [

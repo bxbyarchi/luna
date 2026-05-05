@@ -18,10 +18,10 @@ import {
 import { Button } from "@/components/ui/button";
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: "Админ",
-  manager: "Управляющая",
+  admin: "Завхоз",
+  manager: "Управляющий",
   accountant: "Бухгалтер",
-  warehouse: "Завхоз",
+  warehouse: "Кладовщик",
 };
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
