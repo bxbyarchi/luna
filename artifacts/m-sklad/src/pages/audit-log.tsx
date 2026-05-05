@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useListAuditLog, getListAuditLogQueryKey } from "@workspace/api-client-react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -33,10 +35,18 @@ const PAGE_SIZE = 50;
 
 export default function AuditLog() {
   const [page, setPage] = useState(0);
+  const { user, canDo } = useCurrentUser();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (user && !canDo("admin")) {
+      setLocation("/dashboard");
+    }
+  }, [user, canDo, setLocation]);
 
   const { data, isLoading } = useListAuditLog(
     { limit: PAGE_SIZE, offset: page * PAGE_SIZE },
-    { query: { queryKey: getListAuditLogQueryKey({ limit: PAGE_SIZE, offset: page * PAGE_SIZE }) } }
+    { query: { queryKey: getListAuditLogQueryKey({ limit: PAGE_SIZE, offset: page * PAGE_SIZE }), enabled: canDo("admin") } }
   );
 
   const total = data?.total ?? 0;

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useUser } from "@clerk/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -627,7 +628,14 @@ function TelegramSection() {
 }
 
 export default function Settings() {
-  const { canDo } = useCurrentUser();
+  const { user, canDo } = useCurrentUser();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (user && !canDo("admin")) {
+      setLocation("/dashboard");
+    }
+  }, [user, canDo, setLocation]);
 
   return (
     <div className="space-y-6 max-w-3xl">

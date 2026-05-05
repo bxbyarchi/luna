@@ -24,6 +24,8 @@ import Onboarding from "@/pages/onboarding";
 import Reports from "@/pages/reports";
 
 import { AppLayout } from "@/components/layout";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import type { AppRole } from "@/hooks/useCurrentUser";
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -148,6 +150,56 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   );
 }
 
+/**
+ * Inner component rendered only when the user is confirmed signed-in.
+ * Checks the user's role from the API and either renders the page or
+ * redirects to /dashboard. Only shows a spinner while the first
+ * /api/auth/me fetch is in-flight (isLoading). Once the fetch settles
+ * (success or all retries exhausted), the role decision is made
+ * immediately so there is no indefinite spinner.
+ */
+function RoleCheck({ component: Component, minRole }: { component: React.ComponentType; minRole: AppRole }) {
+  const { canDo, isLoading } = useCurrentUser();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center">
+        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!canDo(minRole)) {
+    return <Redirect to="/dashboard" />;
+  }
+
+  return (
+    <AppLayout>
+      <Component />
+    </AppLayout>
+  );
+}
+
+function RoleProtectedRoute({ component: Component, minRole }: { component: React.ComponentType; minRole: AppRole }) {
+  const { isLoaded, isSignedIn } = useAuth();
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center">
+        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return <Redirect to="/" />;
+  }
+
+  // Only mount RoleCheck once Clerk is loaded and the session is established.
+  // This ensures the auth token getter is set before useGetMe fires its first request.
+  return <RoleCheck component={Component} minRole={minRole} />;
+}
+
 function OnboardingPage() {
   const { isLoaded, isSignedIn } = useAuth();
   if (!isLoaded) {
@@ -262,9 +314,9 @@ function ClerkProviderWithRoutes() {
           <Route path="/inventory-audits"><ProtectedRoute component={InventoryAudits} /></Route>
           <Route path="/rentals"><ProtectedRoute component={Rentals} /></Route>
           <Route path="/staff"><ProtectedRoute component={Staff} /></Route>
-          <Route path="/audit-log"><ProtectedRoute component={AuditLog} /></Route>
+          <Route path="/audit-log"><RoleProtectedRoute component={AuditLog} minRole="admin" /></Route>
           <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
-          <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
+          <Route path="/settings"><RoleProtectedRoute component={Settings} minRole="admin" /></Route>
           <Route path="/onboarding"><OnboardingPage /></Route>
           <Route component={NotFound} />
         </Switch>

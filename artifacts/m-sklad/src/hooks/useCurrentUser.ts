@@ -17,7 +17,7 @@ export const ROLE_LABELS: Record<string, string> = {
 };
 
 export function useCurrentUser() {
-  const { data: user, isLoading } = useGetMe({
+  const { data: user, isLoading, isError } = useGetMe({
     query: {
       staleTime: 0,
       refetchOnMount: "always",
@@ -32,5 +32,5 @@ export function useCurrentUser() {
 
   const roleLabel = user?.role ? (ROLE_LABELS[user.role] ?? user.role) : "";
 
-  return { user, role: user?.role as AppRole | undefined, canDo, isLoading, roleLabel };
+  return { user, role: user?.role as AppRole | undefined, canDo, isLoading, isError, roleLabel };
 }

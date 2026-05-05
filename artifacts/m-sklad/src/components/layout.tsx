@@ -40,7 +40,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { name: "Сотрудники", href: "/staff", icon: Users, testId: "staff" },
     { name: "Отчёты", href: "/reports", icon: FileBarChart, roles: ["admin"], testId: "reports" },
     { name: "Журнал аудита", href: "/audit-log", icon: History, roles: ["admin"], testId: "audit-log" },
-    { name: "Настройки", href: "/settings", icon: Settings, testId: "settings" },
+    { name: "Настройки", href: "/settings", icon: Settings, roles: ["admin"], testId: "settings" },
   ];
 
   return (
