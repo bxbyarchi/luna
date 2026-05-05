@@ -16,10 +16,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { User, Building2, Shield, MessageCircle, CheckCircle, XCircle, Save, Link, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: "Завхоз",
-  manager: "Админ",
-  accountant: "Управляющая",
-  warehouse: "Бухгалтер",
+  admin: "Админ",
+  manager: "Управляющая",
+  accountant: "Бухгалтер",
+  warehouse: "Завхоз",
 };
 
 const CURRENCIES = [

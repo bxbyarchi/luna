@@ -10,10 +10,10 @@ const ROLE_LEVEL: Record<string, number> = {
 };
 
 export const ROLE_LABELS: Record<string, string> = {
-  admin: "Завхоз",
-  manager: "Админ",
-  accountant: "Управляющая",
-  warehouse: "Бухгалтер",
+  admin: "Админ",
+  manager: "Управляющая",
+  accountant: "Бухгалтер",
+  warehouse: "Завхоз",
 };
 
 export function useCurrentUser() {
