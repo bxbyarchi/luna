@@ -24,6 +24,7 @@ export default function InventoryAudits() {
   const [newTitle, setNewTitle] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [counts, setCounts] = useState<Record<number, string>>({});
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -97,30 +98,44 @@ export default function InventoryAudits() {
           <h1 className="text-2xl font-bold tracking-tight">Инвентаризации</h1>
           <p className="text-muted-foreground text-sm">Учёт фактических остатков.</p>
         </div>
+        {canDo("manager") && (
+          <Button onClick={() => { setNewTitle(""); setCreateOpen(true); }} data-testid="btn-open-create-audit">
+            <Plus className="mr-2 h-4 w-4" /> Провести инвентаризацию
+          </Button>
+        )}
       </div>
 
-      {canDo("manager") && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Новая инвентаризация</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Новая инвентаризация</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Название</label>
               <Input
-                placeholder="Название, напр. «Ревизия май 2026»"
+                placeholder="Напр. «Ревизия май 2026»"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                className="max-w-sm"
+                onKeyDown={(e) => e.key === "Enter" && !create.isPending && newTitle.trim() && handleCreate()}
                 data-testid="input-audit-title"
+                autoFocus
               />
-              <Button onClick={handleCreate} disabled={!newTitle.trim() || create.isPending} data-testid="btn-create-audit">
-                <Plus className="mr-2 h-4 w-4" /> Создать
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>Отмена</Button>
+              <Button
+                onClick={() => {
+                  handleCreate();
+                  setCreateOpen(false);
+                }}
+                disabled={!newTitle.trim() || create.isPending}
+                data-testid="btn-create-audit"
+              >
+                <ClipboardCheck className="mr-2 h-4 w-4" /> Создать
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardContent className="p-0">

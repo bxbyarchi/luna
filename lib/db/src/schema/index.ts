@@ -7,3 +7,4 @@ export * from "./inventoryAudits";
 export * from "./users";
 export * from "./auditLog";
 export * from "./rentals";
+export * from "./settings";

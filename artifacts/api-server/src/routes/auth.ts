@@ -77,6 +77,7 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
     role: user.role,
     firstName: user.firstName,
     lastName: user.lastName,
+    telegramChatId: user.telegramChatId ?? null,
   });
 });
 

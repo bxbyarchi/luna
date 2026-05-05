@@ -13,6 +13,7 @@ import exportRouter from "./exportRoutes";
 import storageRouter from "./storage";
 import rentalsRouter from "./rentals";
 import onboardingRouter from "./onboarding";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(auditLogRouter);
 router.use(exportRouter);
 router.use(storageRouter);
 router.use(rentalsRouter);
+router.use(settingsRouter);
 
 export default router;

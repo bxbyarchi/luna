@@ -1,6 +1,6 @@
 import { Telegraf, type Context } from "telegraf";
 import { db } from "@workspace/db";
-import { itemsTable, writeOffsTable, rentalsTable } from "@workspace/db";
+import { itemsTable, writeOffsTable, rentalsTable, usersTable } from "@workspace/db";
 import { eq, sql, and, lt } from "drizzle-orm";
 import { logger } from "./logger";
 import { logAudit } from "./auditLogger";
@@ -25,6 +25,17 @@ const REASONS = [
 ];
 
 let bot: Telegraf | null = null;
+
+async function getUserRole(chatId: number): Promise<string | null> {
+  try {
+    const user = await db.query.usersTable.findFirst({
+      where: eq(usersTable.telegramChatId, String(chatId)),
+    });
+    return user?.role ?? null;
+  } catch {
+    return null;
+  }
+}
 
 async function showItemSelector(ctx: Context & { chat: { id: number } }) {
   try {
@@ -55,6 +66,61 @@ async function showItemSelector(ctx: Context & { chat: { id: number } }) {
   }
 }
 
+function getRoleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    admin: "Завхоз",
+    manager: "Админ",
+    accountant: "Управляющая",
+    warehouse: "Бухгалтер",
+  };
+  return labels[role] ?? role;
+}
+
+async function showMainMenu(ctx: Context & { chat: { id: number } }) {
+  const chatId = ctx.chat.id;
+  const role = await getUserRole(chatId);
+
+  if (!role) {
+    await ctx.reply(
+      "👋 Добро пожаловать в *M-Sklad*!\n\nВаш аккаунт не привязан к системе.\nПерейдите в *Настройки → Telegram* в веб-интерфейсе и введите ваш Chat ID: `" + chatId + "`",
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📋 Мой Chat ID: " + chatId, callback_data: "show_chatid" }],
+          ],
+        },
+      }
+    );
+    return;
+  }
+
+  const canWrite = role === "admin" || role === "manager";
+  const roleLabel = getRoleLabel(role);
+
+  const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
+
+  if (canWrite) {
+    keyboard.push([{ text: "📸 Зарегистрировать бой/списание", callback_data: "start_breakage" }]);
+  }
+
+  keyboard.push([{ text: "📦 Остатки на складе", callback_data: "show_stock" }]);
+  keyboard.push([{ text: "🏷️ Активные аренды", callback_data: "show_rentals" }]);
+  keyboard.push([{ text: "ℹ️ Мой профиль", callback_data: "show_profile" }]);
+
+  if (canWrite) {
+    keyboard.push([{ text: "❌ Отменить операцию", callback_data: "cancel" }]);
+  }
+
+  await ctx.reply(
+    `🏪 *M-Sklad*\n\nВы вошли как *${roleLabel}*.\nВыберите действие:`,
+    {
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: keyboard },
+    }
+  );
+}
+
 export function initTelegramBot(): void {
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   if (!token) {
@@ -64,19 +130,20 @@ export function initTelegramBot(): void {
 
   bot = new Telegraf(token);
 
-  bot.start((ctx) => {
+  bot.start(async (ctx) => {
     states.delete(ctx.chat.id);
-    ctx.reply(
-      "Добро пожаловать в *M-Sklad* 🏪\n\nВыберите действие:",
-      {
-        parse_mode: "Markdown",
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "📸 Зарегистрировать бой/списание", callback_data: "start_breakage" }],
-            [{ text: "❌ Отменить операцию", callback_data: "cancel" }],
-          ],
-        },
-      }
+    await showMainMenu(ctx as Parameters<typeof showMainMenu>[0]);
+  });
+
+  bot.command("menu", async (ctx) => {
+    states.delete(ctx.chat.id);
+    await showMainMenu(ctx as Parameters<typeof showMainMenu>[0]);
+  });
+
+  bot.command("myid", async (ctx) => {
+    await ctx.reply(
+      `Ваш Telegram Chat ID: \`${ctx.chat.id}\`\n\nВставьте это значение в *Настройки → Telegram* в веб-интерфейсе M-Sklad.`,
+      { parse_mode: "Markdown" }
     );
   });
 
@@ -86,12 +153,112 @@ export function initTelegramBot(): void {
   });
 
   bot.command("breakage", async (ctx) => {
+    const role = await getUserRole(ctx.chat.id);
+    if (role !== "admin" && role !== "manager") {
+      await ctx.reply("⛔ У вас нет прав для регистрации списания.");
+      return;
+    }
     await showItemSelector(ctx as Parameters<typeof showItemSelector>[0]);
   });
 
   bot.action("start_breakage", async (ctx) => {
     await ctx.answerCbQuery();
+    const role = await getUserRole(ctx.chat!.id);
+    if (role !== "admin" && role !== "manager") {
+      await ctx.reply("⛔ У вас нет прав для регистрации списания.");
+      return;
+    }
     await showItemSelector(ctx as Parameters<typeof showItemSelector>[0]);
+  });
+
+  bot.action("show_chatid", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.reply(`Ваш Chat ID: \`${ctx.chat!.id}\``, { parse_mode: "Markdown" });
+  });
+
+  bot.action("show_profile", async (ctx) => {
+    await ctx.answerCbQuery();
+    const chatId = ctx.chat!.id;
+    const role = await getUserRole(chatId);
+    if (!role) {
+      await ctx.reply("Аккаунт не привязан. Используйте /myid чтобы получить ваш Chat ID.");
+      return;
+    }
+    await ctx.reply(
+      `👤 *Профиль*\n\nРоль: *${getRoleLabel(role)}*\nChat ID: \`${chatId}\``,
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  bot.action("show_stock", async (ctx) => {
+    await ctx.answerCbQuery();
+    try {
+      const items = await db
+        .select({ name: itemsTable.name, currentStock: itemsTable.currentStock, unit: itemsTable.unit, minThreshold: itemsTable.minThreshold })
+        .from(itemsTable)
+        .orderBy(itemsTable.name)
+        .limit(20);
+
+      if (!items.length) {
+        await ctx.reply("Позиций на складе нет.");
+        return;
+      }
+
+      const lines = items.map((it) => {
+        const stock = Number(it.currentStock).toFixed(2);
+        const min = it.minThreshold ? Number(it.minThreshold) : null;
+        const warn = min !== null && Number(it.currentStock) <= min ? " ⚠️" : "";
+        return `• ${it.name}: *${stock} ${it.unit}*${warn}`;
+      });
+
+      await ctx.reply(
+        `📦 *Остатки на складе*\n\n${lines.join("\n")}`,
+        { parse_mode: "Markdown" }
+      );
+    } catch (err) {
+      logger.error({ err }, "show_stock error");
+      await ctx.reply("Ошибка при получении данных.");
+    }
+  });
+
+  bot.action("show_rentals", async (ctx) => {
+    await ctx.answerCbQuery();
+    try {
+      const rentals = await db
+        .select({
+          renterName: rentalsTable.renterName,
+          renterPhone: rentalsTable.renterPhone,
+          quantity: rentalsTable.quantity,
+          plannedReturnAt: rentalsTable.plannedReturnAt,
+          itemName: itemsTable.name,
+          itemUnit: itemsTable.unit,
+          status: rentalsTable.status,
+        })
+        .from(rentalsTable)
+        .leftJoin(itemsTable, eq(rentalsTable.itemId, itemsTable.id))
+        .where(eq(rentalsTable.status, "active"))
+        .limit(15);
+
+      if (!rentals.length) {
+        await ctx.reply("Активных аренд нет.");
+        return;
+      }
+
+      const now = new Date();
+      const lines = rentals.map((r) => {
+        const overdue = r.plannedReturnAt < now ? " 🔴 ПРОСРОЧЕНО" : "";
+        const date = r.plannedReturnAt.toLocaleDateString("ru-RU");
+        return `• *${r.itemName}* × ${r.quantity} ${r.itemUnit}\n  ${r.renterName}${r.renterPhone ? ` (${r.renterPhone})` : ""} — до ${date}${overdue}`;
+      });
+
+      await ctx.reply(
+        `🏷️ *Активные аренды*\n\n${lines.join("\n\n")}`,
+        { parse_mode: "Markdown" }
+      );
+    } catch (err) {
+      logger.error({ err }, "show_rentals error");
+      await ctx.reply("Ошибка при получении данных.");
+    }
   });
 
   bot.action("cancel", async (ctx) => {
@@ -170,7 +337,7 @@ export function initTelegramBot(): void {
         .where(eq(itemsTable.id, itemId));
 
       await ctx.reply(
-        `✅ Списание зарегистрировано:\n\n*${itemName}* — ${qty} ${itemUnit ?? "ед."}\nПричина: ${reason}\nСумма: ${totalValue.toFixed(2)} ₽`,
+        `✅ Списание зарегистрировано:\n\n*${itemName}* — ${qty} ${itemUnit ?? "ед."}\nПричина: ${reason}\nСумма: ${totalValue.toFixed(2)} сом`,
         { parse_mode: "Markdown" }
       );
 
