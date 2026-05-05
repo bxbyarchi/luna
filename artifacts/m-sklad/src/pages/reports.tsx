@@ -1,24 +1,23 @@
 import { useState, useRef } from "react";
 import { useAuth } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
+import { useListCategories } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { AppLayout } from "@/components/layout";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   FileSpreadsheet,
   FileText,
-  Download,
   Calendar,
   Package,
   ArrowDownToLine,
   ArrowUpFromLine,
   KeyRound,
-  TrendingUp,
-  TrendingDown,
+  Filter,
 } from "lucide-react";
 
 const API = "/api";
@@ -73,22 +72,28 @@ export default function Reports() {
   const [preset, setPreset] = useState<Period>("month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [categoryId, setCategoryId] = useState<string>("all");
   const [downloading, setDownloading] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+
+  const { data: categories } = useListCategories();
 
   const { from, to } = preset === "custom"
     ? { from: customFrom, to: customTo }
     : getPresetDates(preset);
 
   const canFetch = !!from && !!to;
+  const catParam = categoryId !== "all" ? `&categoryId=${categoryId}` : "";
+  const selectedCat = categories?.find((c) => String(c.id) === categoryId);
+  const categoryLabel = selectedCat ? selectedCat.name : "Общий отчёт";
 
   const { data, isLoading, error } = useQuery<ReportData>({
-    queryKey: ["report-full", from, to],
+    queryKey: ["report-full", from, to, categoryId],
     enabled: canFetch,
     queryFn: async () => {
       const token = await getToken();
       const res = await fetch(
-        `${API}/reports/full?from=${from}&to=${to}&format=json`,
+        `${API}/reports/full?from=${from}&to=${to}&format=json${catParam}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!res.ok) throw new Error("Ошибка загрузки отчёта");
@@ -101,7 +106,7 @@ export default function Reports() {
     try {
       const token = await getToken();
       const res = await fetch(
-        `${API}/reports/full?from=${from}&to=${to}&format=xlsx`,
+        `${API}/reports/full?from=${from}&to=${to}&format=xlsx${catParam}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (!res.ok) throw new Error("Ошибка генерации Excel");
@@ -109,7 +114,7 @@ export default function Reports() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `msklad-report-${from}-${to}.xlsx`;
+      a.download = `msklad-report-${categoryId !== "all" ? categoryId + "-" : ""}${from}-${to}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -127,7 +132,7 @@ export default function Reports() {
     : from && to ? `${from} — ${to}` : "";
 
   return (
-    <AppLayout>
+    <>
       <style>{`
         @media print {
           body * { visibility: hidden !important; }
@@ -197,6 +202,27 @@ export default function Reports() {
                 </div>
               </div>
             )}
+
+            <div className="flex items-end gap-3 flex-wrap pt-1">
+              <div>
+                <Label className="text-xs mb-1 block flex items-center gap-1">
+                  <Filter className="h-3 w-3" /> Категория
+                </Label>
+                <Select value={categoryId} onValueChange={setCategoryId} data-testid="select-category">
+                  <SelectTrigger className="w-52">
+                    <SelectValue placeholder="Общий отчёт" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Общий отчёт</SelectItem>
+                    {categories?.map((cat) => (
+                      <SelectItem key={cat.id} value={String(cat.id)}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
             {canFetch && (
               <div className="flex gap-2 flex-wrap pt-2 border-t border-border">
@@ -429,7 +455,7 @@ export default function Reports() {
           <style>{`
             @media print { #print-report { display: block !important; } }
           `}</style>
-          <h1 style={{ margin: 0 }}>M-Sklad — Сводный отчёт</h1>
+          <h1 style={{ margin: 0 }}>M-Sklad — Сводный отчёт{categoryId !== "all" ? `: ${categoryLabel}` : ""}</h1>
           <p style={{ margin: "2px 0 12px", color: "#666", fontSize: 12 }}>
             Период: {from} — {to} &nbsp;|&nbsp; Сформирован: {new Date().toLocaleDateString("ru-RU")}
           </p>
@@ -486,7 +512,7 @@ export default function Reports() {
           </p>
         </div>
       )}
-    </AppLayout>
+    </>
   );
 }
 

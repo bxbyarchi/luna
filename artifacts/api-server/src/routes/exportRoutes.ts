@@ -102,9 +102,13 @@ router.get("/export/write-offs", requireAuth(), requireRole("admin"), async (req
 });
 
 router.get("/reports/full", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
-  const { from, to, format } = req.query;
+  const { from, to, format, categoryId } = req.query;
   const fromDate = from ? new Date(String(from)) : undefined;
   const toDate = to ? new Date(String(to) + "T23:59:59") : undefined;
+  const catId = categoryId ? Number(categoryId) : undefined;
+
+  const stockConditions = [];
+  if (catId) stockConditions.push(eq(itemsTable.categoryId, catId));
 
   const stockRows = await db
     .select({
@@ -117,11 +121,13 @@ router.get("/reports/full", requireAuth(), requireRole("admin"), async (req: Req
     })
     .from(itemsTable)
     .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
+    .where(stockConditions.length ? and(...stockConditions) : undefined)
     .orderBy(categoriesTable.name, itemsTable.name);
 
-  const receiptConditions: ReturnType<typeof gte>[] = [];
+  const receiptConditions = [];
   if (fromDate) receiptConditions.push(gte(receiptsTable.createdAt, fromDate));
   if (toDate) receiptConditions.push(lte(receiptsTable.createdAt, toDate));
+  if (catId) receiptConditions.push(eq(itemsTable.categoryId, catId));
 
   const receiptRows = await db
     .select({
@@ -138,9 +144,10 @@ router.get("/reports/full", requireAuth(), requireRole("admin"), async (req: Req
     .where(receiptConditions.length ? and(...receiptConditions) : undefined)
     .orderBy(sql`${receiptsTable.createdAt} ASC`);
 
-  const woConditions: ReturnType<typeof gte>[] = [];
+  const woConditions = [];
   if (fromDate) woConditions.push(gte(writeOffsTable.createdAt, fromDate));
   if (toDate) woConditions.push(lte(writeOffsTable.createdAt, toDate));
+  if (catId) woConditions.push(eq(itemsTable.categoryId, catId));
 
   const writeOffRows = await db
     .select({
@@ -168,6 +175,7 @@ router.get("/reports/full", requireAuth(), requireRole("admin"), async (req: Req
       )!
     );
   }
+  if (catId) rentalConditions.push(eq(itemsTable.categoryId, catId));
 
   const rentalRows = await db
     .select({
