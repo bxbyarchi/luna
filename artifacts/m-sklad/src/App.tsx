@@ -308,12 +308,12 @@ function ClerkProviderWithRoutes() {
           <Route path="/sign-up/*?" component={SignUpPage} />
           <Route path="/dashboard"><ProtectedRoute component={Dashboard} /></Route>
           <Route path="/items"><ProtectedRoute component={Items} /></Route>
-          <Route path="/categories"><ProtectedRoute component={Categories} /></Route>
+          <Route path="/categories"><RoleProtectedRoute component={Categories} minRole="manager" /></Route>
           <Route path="/receipts"><ProtectedRoute component={Receipts} /></Route>
-          <Route path="/write-offs"><ProtectedRoute component={WriteOffs} /></Route>
+          <Route path="/write-offs"><RoleProtectedRoute component={WriteOffs} minRole="accountant" /></Route>
           <Route path="/inventory-audits"><ProtectedRoute component={InventoryAudits} /></Route>
           <Route path="/rentals"><ProtectedRoute component={Rentals} /></Route>
-          <Route path="/staff"><ProtectedRoute component={Staff} /></Route>
+          <Route path="/staff"><RoleProtectedRoute component={Staff} minRole="manager" /></Route>
           <Route path="/audit-log"><RoleProtectedRoute component={AuditLog} minRole="admin" /></Route>
           <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
           <Route path="/settings"><RoleProtectedRoute component={Settings} minRole="admin" /></Route>

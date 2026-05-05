@@ -34,6 +34,7 @@ export default function Staff() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canDo } = useCurrentUser();
+
   const create = useCreateStaffMember();
   const update = useUpdateStaffMember();
   const remove = useDeleteStaffMember();
