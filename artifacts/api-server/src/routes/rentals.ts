@@ -52,7 +52,7 @@ router.get("/rentals", requireAuth(), async (req: Request, res: Response) => {
   res.json(rows.map(withOverdue));
 });
 
-router.post("/rentals", requireAuth(), requireRole("admin", "manager", "warehouse"), async (req: Request, res: Response) => {
+router.post("/rentals", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const { itemId, quantity, renterName, renterPhone, issuedAt, plannedReturnAt, notes } = req.body;
   if (!itemId || !quantity || !renterName || !issuedAt || !plannedReturnAt) {
     res.status(400).json({ error: "itemId, quantity, renterName, issuedAt, plannedReturnAt required" });
@@ -113,7 +113,7 @@ router.get("/rentals/:id", requireAuth(), async (req: Request, res: Response) =>
   res.json(withOverdue(row));
 });
 
-router.patch("/rentals/:id", requireAuth(), requireRole("admin", "manager", "warehouse"), async (req: Request, res: Response) => {
+router.patch("/rentals/:id", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const { status, renterName, renterPhone, plannedReturnAt, notes } = req.body;
 

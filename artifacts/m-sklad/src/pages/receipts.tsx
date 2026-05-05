@@ -80,7 +80,7 @@ export default function Receipts() {
         </div>
         {authLoading ? (
           <div className="h-9 w-36 rounded-md bg-muted animate-pulse" />
-        ) : canDo("warehouse") && (
+        ) : canDo("admin") && (
           <Button
             onClick={() => { form.reset({ itemId: "", quantity: "", pricePerUnit: "", supplier: "", notes: "", photoUrl: null }); setOpen(true); }}
             data-testid="btn-create-receipt"
@@ -116,8 +116,8 @@ export default function Receipts() {
                     <TableCell className="font-medium">{r.itemName ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{r.supplier ?? "—"}</TableCell>
                     <TableCell className="text-right">{Number(r.quantity).toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{Number(r.pricePerUnit).toFixed(2)} ₽</TableCell>
-                    <TableCell className="text-right font-semibold text-emerald-700">{Number(r.totalCost).toFixed(2)} ₽</TableCell>
+                    <TableCell className="text-right">{Number(r.pricePerUnit).toFixed(2)} сом</TableCell>
+                    <TableCell className="text-right font-semibold text-emerald-700">{Number(r.totalCost).toFixed(2)} сом</TableCell>
                     <TableCell className="text-center">
                       {r.photoUrl ? (
                         <a href={`/api/storage/objects/${r.photoUrl.replace(/^\/objects\//, "")}`} target="_blank" rel="noopener noreferrer">
@@ -157,7 +157,7 @@ export default function Receipts() {
                   <FormItem><FormLabel>Количество{selectedItem ? ` (${selectedItem.unit})` : ""} *</FormLabel><FormControl><Input type="number" step="0.001" placeholder="0" {...field} data-testid="input-receipt-qty" /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="pricePerUnit" render={({ field }) => (
-                  <FormItem><FormLabel>Цена за ед. (₽) *</FormLabel><FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-receipt-price" /></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormLabel>Цена за ед. (сом) *</FormLabel><FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-receipt-price" /></FormControl><FormMessage /></FormItem>
                 )} />
               </div>
               <FormField control={form.control} name="supplier" render={({ field }) => (
@@ -177,7 +177,7 @@ export default function Receipts() {
               {form.watch("quantity") && form.watch("pricePerUnit") && (
                 <div className="rounded-lg bg-muted px-4 py-3 text-sm">
                   <span className="text-muted-foreground">Итого: </span>
-                  <span className="font-semibold">{(Number(form.watch("quantity")) * Number(form.watch("pricePerUnit"))).toFixed(2)} ₽</span>
+                  <span className="font-semibold">{(Number(form.watch("quantity")) * Number(form.watch("pricePerUnit"))).toFixed(2)} сом</span>
                 </div>
               )}
               <div className="flex justify-end gap-2 pt-2">

@@ -42,7 +42,7 @@ router.get("/items", requireAuth(), async (req: Request, res: Response) => {
   res.json(rows);
 });
 
-router.post("/items", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+router.post("/items", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const { name, categoryId, unit, location, currentStock, minThreshold, pricePerUnit, photoUrl, notes } = req.body;
   if (!name || !categoryId) { res.status(400).json({ error: "name and categoryId required" }); return; }
   const [row] = await db.insert(itemsTable).values({
@@ -80,7 +80,7 @@ router.get("/items/:id", requireAuth(), async (req: Request, res: Response) => {
   res.json(row);
 });
 
-router.patch("/items/:id", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+router.patch("/items/:id", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const { name, categoryId, unit, location, currentStock, minThreshold, pricePerUnit, photoUrl, notes } = req.body;
   const updates: Record<string, unknown> = {};
@@ -107,7 +107,7 @@ router.patch("/items/:id", requireAuth(), requireRole("admin", "manager"), async
   res.json(row);
 });
 
-router.delete("/items/:id", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+router.delete("/items/:id", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const [row] = await db.delete(itemsTable).where(eq(itemsTable.id, id)).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }

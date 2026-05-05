@@ -91,7 +91,7 @@ export default function WriteOffs() {
         </div>
         {authLoading ? (
           <div className="h-9 w-28 rounded-md bg-muted animate-pulse" />
-        ) : canDo("manager") && (
+        ) : canDo("admin") && (
           <Button variant="destructive" onClick={() => { form.reset(); setOpen(true); }} data-testid="btn-create-writeoff">
             <Plus className="mr-2 h-4 w-4" /> Списать
           </Button>
@@ -125,7 +125,7 @@ export default function WriteOffs() {
                     <TableCell>{wo.reason}</TableCell>
                     <TableCell className="text-muted-foreground">{wo.staffName ?? "—"}</TableCell>
                     <TableCell className="text-right">{Number(wo.quantity).toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-semibold text-destructive">−{Number(wo.totalValue).toFixed(2)} ₽</TableCell>
+                    <TableCell className="text-right font-semibold text-destructive">−{Number(wo.totalValue).toFixed(2)} сом</TableCell>
                     <TableCell className="text-center">
                       {wo.photoUrl ? (
                         <a href={`/api/storage/objects/${wo.photoUrl.replace(/^\/objects\//, "")}`} target="_blank" rel="noopener noreferrer">

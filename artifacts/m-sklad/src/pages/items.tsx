@@ -130,7 +130,7 @@ export default function Items() {
           <h1 className="text-2xl font-bold tracking-tight">Позиции склада</h1>
           <p className="text-muted-foreground text-sm">Все материальные ценности.</p>
         </div>
-        {canDo("manager") && (
+        {canDo("admin") && (
           <Button onClick={openCreate} data-testid="btn-create-item">
             <Plus className="mr-2 h-4 w-4" /> Добавить
           </Button>
@@ -161,7 +161,7 @@ export default function Items() {
                 <TableHead className="text-right">Остаток</TableHead>
                 <TableHead className="text-right">Цена</TableHead>
                 <TableHead>Статус</TableHead>
-                {canDo("manager") && <TableHead className="text-right">Действия</TableHead>}
+                {canDo("admin") && <TableHead className="text-right">Действия</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -186,7 +186,7 @@ export default function Items() {
                     <TableCell>{item.categoryName ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{item.location ?? "—"}</TableCell>
                     <TableCell className="text-right">{Number(item.currentStock).toFixed(2)} {item.unit}</TableCell>
-                    <TableCell className="text-right">{Number(item.pricePerUnit).toFixed(2)} ₽</TableCell>
+                    <TableCell className="text-right">{Number(item.pricePerUnit).toFixed(2)} сом</TableCell>
                     <TableCell>
                       {item.isBelowThreshold ? (
                         <Badge variant="destructive" className="text-xs">Мало</Badge>
@@ -194,7 +194,7 @@ export default function Items() {
                         <Badge variant="outline" className="text-xs text-emerald-700 bg-emerald-50 border-emerald-200">Норма</Badge>
                       )}
                     </TableCell>
-                    {canDo("manager") && (
+                    {canDo("admin") && (
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(item)} data-testid={`btn-edit-item-${item.id}`}><Edit className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} data-testid={`btn-delete-item-${item.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -234,7 +234,7 @@ export default function Items() {
                   <FormItem><FormLabel>Расположение</FormLabel><FormControl><Input placeholder="Зал, кладовая..." {...field} data-testid="input-item-location" /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="pricePerUnit" render={({ field }) => (
-                  <FormItem><FormLabel>Цена за ед. (₽)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-item-price" /></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormLabel>Цена за ед. (сом)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} data-testid="input-item-price" /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="currentStock" render={({ field }) => (
                   <FormItem><FormLabel>Текущий остаток</FormLabel><FormControl><Input type="number" step="0.001" placeholder="0" {...field} data-testid="input-item-stock" /></FormControl><FormMessage /></FormItem>

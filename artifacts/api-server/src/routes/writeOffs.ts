@@ -40,7 +40,7 @@ router.get("/write-offs", requireAuth(), async (req: Request, res: Response) => 
   res.json(rows);
 });
 
-router.post("/write-offs", requireAuth(), requireRole("admin", "manager", "warehouse"), async (req: Request, res: Response) => {
+router.post("/write-offs", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const { itemId, quantity, reason, staffId, photoUrl, notes } = req.body;
   if (!itemId || !quantity || !reason) {
     res.status(400).json({ error: "itemId, quantity, reason required" });

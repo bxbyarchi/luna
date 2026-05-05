@@ -17,7 +17,7 @@ router.get("/inventory-audits", requireAuth(), async (req: Request, res: Respons
   res.json(rows);
 });
 
-router.post("/inventory-audits", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+router.post("/inventory-audits", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const { title } = req.body;
   if (!title) { res.status(400).json({ error: "title required" }); return; }
 
@@ -63,7 +63,7 @@ router.get("/inventory-audits/:id", requireAuth(), async (req: Request, res: Res
   res.json({ ...audit, items: auditItems });
 });
 
-router.patch("/inventory-audits/:id", requireAuth(), requireRole("admin", "manager", "warehouse"), async (req: Request, res: Response) => {
+router.patch("/inventory-audits/:id", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const { items } = req.body;
   if (!Array.isArray(items)) { res.status(400).json({ error: "items array required" }); return; }
@@ -88,7 +88,7 @@ router.patch("/inventory-audits/:id", requireAuth(), requireRole("admin", "manag
   res.json(audit);
 });
 
-router.post("/inventory-audits/:id/submit", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+router.post("/inventory-audits/:id/submit", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
 
   const audit = await db.query.inventoryAuditsTable.findFirst({ where: eq(inventoryAuditsTable.id, id) });

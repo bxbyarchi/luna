@@ -13,7 +13,7 @@ router.get("/categories", requireAuth(), async (req: Request, res: Response) => 
   res.json(rows.map((r) => ({ id: r.id, name: r.name, slug: r.slug, description: r.description })));
 });
 
-router.post("/categories", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+router.post("/categories", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const { name, slug, description } = req.body;
   if (!name || !slug) {
     res.status(400).json({ error: "name and slug required" });
@@ -24,7 +24,7 @@ router.post("/categories", requireAuth(), requireRole("admin", "manager"), async
   res.status(201).json(row);
 });
 
-router.patch("/categories/:id", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+router.patch("/categories/:id", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const { name, slug, description } = req.body;
   const [row] = await db
@@ -37,7 +37,7 @@ router.patch("/categories/:id", requireAuth(), requireRole("admin", "manager"), 
   res.json(row);
 });
 
-router.delete("/categories/:id", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+router.delete("/categories/:id", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const [row] = await db.delete(categoriesTable).where(eq(categoriesTable.id, id)).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }

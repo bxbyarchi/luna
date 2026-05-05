@@ -31,7 +31,7 @@ const CHART_COLORS = ["hsl(152,69%,31%)", "hsl(20,14%,40%)", "hsl(40,70%,50%)", 
 type Period = "day" | "week" | "month" | "year";
 
 function formatCurrency(v: number) {
-  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(v);
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(v) + " сом";
 }
 
 function TrendBadge({ value }: { value: number }) {

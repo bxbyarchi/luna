@@ -85,7 +85,7 @@ export default function Staff() {
           <h1 className="text-2xl font-bold tracking-tight">Сотрудники</h1>
           <p className="text-muted-foreground text-sm">Справочник персонала.</p>
         </div>
-        {canDo("manager") && (
+        {canDo("admin") && (
           <Button onClick={openCreate} data-testid="btn-create-staff">
             <Plus className="mr-2 h-4 w-4" /> Добавить
           </Button>
@@ -101,7 +101,7 @@ export default function Staff() {
                 <TableHead>Должность</TableHead>
                 <TableHead>Телефон</TableHead>
                 <TableHead>Статус</TableHead>
-                {canDo("manager") && <TableHead className="text-right">Действия</TableHead>}
+                {canDo("admin") && <TableHead className="text-right">Действия</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -120,7 +120,7 @@ export default function Staff() {
                         {m.isActive ? "Активен" : "Неактивен"}
                       </Badge>
                     </TableCell>
-                    {canDo("manager") && (
+                    {canDo("admin") && (
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(m as StaffMember)} data-testid={`btn-edit-staff-${m.id}`}><Edit className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(m.id)} data-testid={`btn-delete-staff-${m.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>

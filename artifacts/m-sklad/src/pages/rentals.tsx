@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { KeyRound, Plus, Phone, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 
 type StatusFilter = "all" | "active" | "returned";
@@ -39,6 +40,7 @@ export default function Rentals() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showCreate, setShowCreate] = useState(false);
   const { toast } = useToast();
+  const { canDo } = useCurrentUser();
   const queryClient = useQueryClient();
 
   const queryParams = statusFilter !== "all" ? { status: statusFilter as "active" | "returned" } : {};
@@ -69,9 +71,11 @@ export default function Rentals() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="heading-rentals">Аренда</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Учёт выданных в аренду позиций.</p>
         </div>
-        <Button onClick={() => setShowCreate(true)} data-testid="btn-create-rental">
-          <Plus className="h-4 w-4 mr-2" /> Новая аренда
-        </Button>
+        {canDo("admin") && (
+          <Button onClick={() => setShowCreate(true)} data-testid="btn-create-rental">
+            <Plus className="h-4 w-4 mr-2" /> Новая аренда
+          </Button>
+        )}
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -144,7 +148,7 @@ export default function Rentals() {
                       {r.notes && <p className="text-xs text-muted-foreground mt-1 italic">{r.notes}</p>}
                     </div>
                   </div>
-                  {r.status === "active" && (
+                  {r.status === "active" && canDo("admin") && (
                     <Button
                       size="sm"
                       variant="outline"

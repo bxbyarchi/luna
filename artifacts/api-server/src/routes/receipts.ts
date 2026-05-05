@@ -37,7 +37,7 @@ router.get("/receipts", requireAuth(), async (req: Request, res: Response) => {
   res.json(rows);
 });
 
-router.post("/receipts", requireAuth(), requireRole("admin", "manager", "warehouse"), async (req: Request, res: Response) => {
+router.post("/receipts", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const { itemId, quantity, pricePerUnit, supplier, photoUrl, notes } = req.body;
   if (!itemId || !quantity || !pricePerUnit) {
     res.status(400).json({ error: "itemId, quantity, pricePerUnit required" });

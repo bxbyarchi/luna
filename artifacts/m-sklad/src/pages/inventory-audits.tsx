@@ -98,7 +98,7 @@ export default function InventoryAudits() {
           <h1 className="text-2xl font-bold tracking-tight">Инвентаризации</h1>
           <p className="text-muted-foreground text-sm">Учёт фактических остатков.</p>
         </div>
-        {canDo("manager") && (
+        {canDo("admin") && (
           <Button onClick={() => { setNewTitle(""); setCreateOpen(true); }} data-testid="btn-open-create-audit">
             <Plus className="mr-2 h-4 w-4" /> Провести инвентаризацию
           </Button>
@@ -234,7 +234,7 @@ export default function InventoryAudits() {
                   <Button variant="outline" onClick={handleSave} disabled={updateAudit.isPending} data-testid="btn-save-audit">
                     Сохранить
                   </Button>
-                  {canDo("manager") && (
+                  {canDo("admin") && (
                     <Button onClick={handleSubmit} disabled={submitAudit.isPending} data-testid="btn-submit-audit">
                       Завершить инвентаризацию
                     </Button>
