@@ -34,6 +34,7 @@ type ItemOption = { id: number; name: string; unit: string; pricePerUnit: string
 
 export default function Receipts() {
   const [open, setOpen] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canDo, isLoading: authLoading } = useCurrentUser();
@@ -120,9 +121,14 @@ export default function Receipts() {
                     <TableCell className="text-right font-semibold text-emerald-700">{Number(r.totalCost).toFixed(2)} сом</TableCell>
                     <TableCell className="text-center">
                       {r.photoUrl ? (
-                        <a href={`/api/storage/objects/${r.photoUrl.replace(/^\/objects\//, "")}`} target="_blank" rel="noopener noreferrer">
-                          <ImageIcon className="h-4 w-4 text-primary mx-auto" />
-                        </a>
+                        <button
+                          onClick={() => setLightboxUrl(`/api/storage/objects/${r.photoUrl!.replace(/^\/objects\//, "")}`)}
+                          className="inline-flex items-center justify-center rounded p-1 hover:bg-muted transition-colors"
+                          aria-label="Просмотреть фото"
+                          data-testid={`btn-photo-${r.id}`}
+                        >
+                          <ImageIcon className="h-4 w-4 text-primary" />
+                        </button>
                       ) : <span className="text-muted-foreground text-xs">—</span>}
                     </TableCell>
                   </TableRow>
@@ -132,6 +138,22 @@ export default function Receipts() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={!!lightboxUrl} onOpenChange={(o) => { if (!o) setLightboxUrl(null); }}>
+        <DialogContent className="max-w-3xl p-2 sm:p-4 flex flex-col items-center gap-3">
+          <DialogHeader className="w-full">
+            <DialogTitle className="text-sm text-muted-foreground">Фото поставки</DialogTitle>
+          </DialogHeader>
+          {lightboxUrl && (
+            <img
+              src={lightboxUrl}
+              alt="Фото поставки"
+              className="max-h-[75vh] w-full object-contain rounded-md"
+              data-testid="lightbox-image"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
