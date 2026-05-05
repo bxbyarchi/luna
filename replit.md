@@ -34,7 +34,7 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 - `staff.ts` — Staff directory CRUD (update uses PATCH)
 - `analytics.ts` — 6 endpoints: summary KPIs, category breakdown, spending over time (by period), top write-offs, low stock, active-rentals
 - `auditLog.ts` — Paginated audit log — returns `{rows, total, limit, offset}`; restricted to admin/manager roles
-- `exportRoutes.ts` — Excel export via xlsx; restricted to admin/manager/accountant roles
+- `exportRoutes.ts` — Excel exports via xlsx; `/reports/full?from&to&format=(xlsx|json)` — comprehensive multi-sheet report (Остатки, Поступления, Списания, Аренда, Итого); admin-only
 - `storage.ts` — Object storage for photo uploads
 - `rentals.ts` — Rental tracking: creates rental (decreases stock), mark returned (restores stock), isOverdue computed flag
 
@@ -54,6 +54,7 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 - `staff.tsx` — Full CRUD with active status badge
 - `audit-log.tsx` — Paginated table (uses `{rows, total}` from API) of all system actions with action/entity type badges
 - `rentals.tsx` — Rental tracking: create dialog (item/qty/renter/dates), status filter tabs, mark returned button, overdue badge, clickable phone links
+- `reports.tsx` — Full reports page: date presets (week/month/custom), summary KPI cards, 4 data tables (stock/receipts/write-offs/rentals), Excel download (server blob) and PDF via window.print() with print-only layout
 
 ## Database Schema (`lib/db/src/schema/`)
 

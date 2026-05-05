@@ -21,6 +21,7 @@ import AuditLog from "@/pages/audit-log";
 import Settings from "@/pages/settings";
 import Rentals from "@/pages/rentals";
 import Onboarding from "@/pages/onboarding";
+import Reports from "@/pages/reports";
 
 import { AppLayout } from "@/components/layout";
 
@@ -262,6 +263,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/rentals"><ProtectedRoute component={Rentals} /></Route>
           <Route path="/staff"><ProtectedRoute component={Staff} /></Route>
           <Route path="/audit-log"><ProtectedRoute component={AuditLog} /></Route>
+          <Route path="/reports"><ProtectedRoute component={Reports} /></Route>
           <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
           <Route path="/onboarding"><OnboardingPage /></Route>
           <Route component={NotFound} />
