@@ -9,25 +9,28 @@ import {
   receiptsTable,
   staffTable,
 } from "@workspace/db";
-import { eq, sql, and, lt, lte, gte } from "drizzle-orm";
+import { eq, sql, and, lt, lte, gte, ilike } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { logger } from "./logger";
 import { logAudit } from "./auditLogger";
 
-// ---------------------------------------------------------------------------
-// State maps
-// ---------------------------------------------------------------------------
-interface AuthState { step: "await_email" }
-interface BreakageState {
-  step: "await_item" | "await_qty" | "await_reason";
-  itemId?: number;
-  itemName?: string;
-  itemUnit?: string;
-  qty?: number;
-}
-
-const authStates = new Map<number, AuthState>();
-const states = new Map<number, BreakageState>();
+// ============================================================================
+// Button text constants — used for ReplyKeyboard matching
+// ============================================================================
+const BTN = {
+  // Main menu
+  ANALYTICS:  "📊 Аналитика и Отчёты",
+  WAREHOUSE:  "📦 Управление Складом",
+  SETTINGS:   "⚙️ Настройки и Доступы",
+  PROFILE:    "👤 Профиль",
+  // Warehouse submenu
+  ALL_STOCK:  "📦 Все остатки",
+  SEARCH:     "🔍 Поиск товара",
+  CRITICAL:   "⚠️ Критический остаток",
+  BREAKAGE:   "📸 Новое списание",
+  // Universal
+  BACK:       "⬅️ Назад в меню",
+} as const;
 
 const REASONS = [
   "Бой/повреждение",
@@ -38,86 +41,358 @@ const REASONS = [
   "Иное",
 ];
 
+// ============================================================================
+// Unified state machine
+// ============================================================================
+type CtxMode =
+  | "main"
+  | "warehouse"
+  | "analytics"
+  | "auth"
+  | "search"
+  | "breakage_qty"
+  | "breakage_reason"
+  | "restock_qty";
+
+interface UserCtx {
+  mode: CtxMode;
+  itemId?: number;
+  itemName?: string;
+  itemUnit?: string;
+  qty?: number;
+}
+
+const userCtx = new Map<number, UserCtx>();
+
 let bot: Telegraf | null = null;
 
-// ---------------------------------------------------------------------------
+// ============================================================================
 // DB helpers
-// ---------------------------------------------------------------------------
+// ============================================================================
 async function getUserByChat(chatId: number) {
   try {
     return await db.query.usersTable.findFirst({
       where: eq(usersTable.telegramChatId, String(chatId)),
     });
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 async function getUserRole(chatId: number): Promise<string | null> {
-  const user = await getUserByChat(chatId);
-  return user?.role ?? null;
+  const u = await getUserByChat(chatId);
+  return u?.role ?? null;
 }
 
-function getRoleLabel(role: string): string {
-  const labels: Record<string, string> = {
-    admin: "Завхоз",
-    manager: "Управляющий",
-    accountant: "Бухгалтер",
-    warehouse: "Кладовщик",
-  };
-  return labels[role] ?? role;
+function roleLabel(role: string) {
+  return ({ admin: "Завхоз", manager: "Управляющий", accountant: "Бухгалтер", warehouse: "Кладовщик" })[role] ?? role;
 }
 
-// ---------------------------------------------------------------------------
-// Main menu
-// ---------------------------------------------------------------------------
-async function showMainMenu(ctx: Context & { chat: { id: number } }) {
-  const chatId = ctx.chat.id;
-  const user = await getUserByChat(chatId);
+function fmt(n: number) {
+  return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
-  if (!user) {
-    authStates.set(chatId, { step: "await_email" });
-    await ctx.reply(
-      "👋 Добро пожаловать в *M-Sklad*!\n\nДля входа введите ваш рабочий Email:",
-      { parse_mode: "Markdown" }
-    );
-    return;
-  }
-
-  const role = user.role;
+// ============================================================================
+// Keyboard builders
+// ============================================================================
+function mainKeyboard(role: string) {
   const isAdmin = role === "admin";
-  const canReport = ["admin", "manager", "accountant"].includes(role);
+  const rows: Array<Array<{ text: string }>> = [
+    [{ text: BTN.ANALYTICS }, { text: BTN.WAREHOUSE }],
+  ];
+  if (isAdmin) rows.push([{ text: BTN.SETTINGS }, { text: BTN.PROFILE }]);
+  else rows.push([{ text: BTN.PROFILE }]);
+  return { keyboard: rows, resize_keyboard: true };
+}
 
-  const keyboard: Array<Array<{ text: string; callback_data: string }>> = [];
-  keyboard.push([{ text: "📦 Остатки на складе", callback_data: "show_stock" }]);
-  if (canReport) {
-    keyboard.push([{ text: "📊 Отчёт по категории", callback_data: "report_pick_cat" }]);
-  }
-  if (isAdmin) {
-    keyboard.push([{ text: "⚠️ Критический остаток", callback_data: "show_critical" }]);
-    keyboard.push([{ text: "📸 Зарегистрировать списание", callback_data: "start_breakage" }]);
-    keyboard.push([{ text: "🏷️ Активные аренды", callback_data: "show_rentals" }]);
-  }
-  keyboard.push([{ text: "👤 Профиль", callback_data: "show_profile" }]);
+function warehouseKeyboard(role: string) {
+  const isAdmin = role === "admin";
+  const rows: Array<Array<{ text: string }>> = [
+    [{ text: BTN.ALL_STOCK }, { text: BTN.SEARCH }],
+    [{ text: BTN.CRITICAL }],
+  ];
+  if (isAdmin) rows.push([{ text: BTN.BREAKAGE }]);
+  rows.push([{ text: BTN.BACK }]);
+  return { keyboard: rows, resize_keyboard: true };
+}
 
+// ============================================================================
+// Send menus
+// ============================================================================
+async function sendMainMenu(ctx: Context & { chat: { id: number } }, user: NonNullable<Awaited<ReturnType<typeof getUserByChat>>>) {
+  const role = user.role;
+  userCtx.set(ctx.chat.id, { mode: "main" });
   await ctx.reply(
-    `🏪 *M-Sklad* — добро пожаловать, *${getRoleLabel(role)}*!\n\nВыберите действие:`,
-    { parse_mode: "Markdown", reply_markup: { inline_keyboard: keyboard } }
+    `🏪 *M-Sklad — Главное меню*\n\nДобро пожаловать, *${user.firstName ?? user.email}* (${roleLabel(role)})\n\nВыберите раздел:`,
+    { parse_mode: "Markdown", reply_markup: mainKeyboard(role) }
   );
 }
 
-// ---------------------------------------------------------------------------
-// Report helpers
-// ---------------------------------------------------------------------------
+async function sendWarehouseMenu(ctx: Context & { chat: { id: number } }, role: string) {
+  userCtx.set(ctx.chat.id, { mode: "warehouse" });
+  await ctx.reply(
+    "📦 *Управление Складом*\n\nВыберите действие:",
+    { parse_mode: "Markdown", reply_markup: warehouseKeyboard(role) }
+  );
+}
+
+async function requireAuth(ctx: Context & { chat: { id: number } }) {
+  const user = await getUserByChat(ctx.chat.id);
+  if (!user) {
+    userCtx.set(ctx.chat.id, { mode: "auth" });
+    await ctx.reply(
+      "👋 Добро пожаловать в *M-Sklad*!\n\nДля входа введите ваш рабочий Email:",
+      { parse_mode: "Markdown", reply_markup: { remove_keyboard: true } }
+    );
+    return null;
+  }
+  return user;
+}
+
+// ============================================================================
+// Analytics — inline category + format pickers
+// ============================================================================
+async function sendAnalyticsMenu(ctx: Context) {
+  try {
+    const cats = await db
+      .select({ id: categoriesTable.id, name: categoriesTable.name })
+      .from(categoriesTable)
+      .orderBy(categoriesTable.name);
+
+    const catRows = cats.map((c) => [{ text: c.name, callback_data: `rep_fmt_${c.id}` }]);
+    await ctx.reply(
+      "📊 *Аналитика и Отчёты*\n_(за текущий месяц)_\n\nВыберите категорию:",
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📋 Общий отчёт (все категории)", callback_data: "rep_fmt_all" }],
+            ...catRows,
+          ],
+        },
+      }
+    );
+  } catch (err) {
+    logger.error({ err }, "sendAnalyticsMenu error");
+    await ctx.reply("Ошибка загрузки категорий.");
+  }
+}
+
+// ============================================================================
+// Stock display
+// ============================================================================
+async function showAllStock(ctx: Context & { chat: { id: number } }) {
+  try {
+    const items = await db
+      .select({
+        id: itemsTable.id,
+        name: itemsTable.name,
+        currentStock: itemsTable.currentStock,
+        unit: itemsTable.unit,
+        minThreshold: itemsTable.minThreshold,
+        category: categoriesTable.name,
+      })
+      .from(itemsTable)
+      .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
+      .orderBy(categoriesTable.name, itemsTable.name)
+      .limit(35);
+
+    if (!items.length) { await ctx.reply("Позиций на складе нет."); return; }
+
+    const lines = items.map((it) => {
+      const stock = Number(it.currentStock);
+      const min = it.minThreshold ? Number(it.minThreshold) : null;
+      const isCritical = min !== null && stock <= min;
+      const icon = isCritical ? "🔴" : stock > (min ?? 0) * 2 ? "🟢" : "🟡";
+      const cat = it.category ? `[${it.category}] ` : "";
+      return `${icon} ${cat}*${it.name}*: ${stock.toFixed(1)} ${it.unit}${isCritical ? " ⚠️" : ""}`;
+    });
+
+    await ctx.reply(
+      `📦 *Остатки на складе* (${items.length} позиций)\n\n${lines.join("\n")}`,
+      { parse_mode: "Markdown" }
+    );
+  } catch (err) {
+    logger.error({ err }, "showAllStock error");
+    await ctx.reply("Ошибка при получении данных.");
+  }
+}
+
+async function showCriticalStock(ctx: Context) {
+  try {
+    const items = await db
+      .select({
+        id: itemsTable.id,
+        name: itemsTable.name,
+        currentStock: itemsTable.currentStock,
+        minThreshold: itemsTable.minThreshold,
+        unit: itemsTable.unit,
+      })
+      .from(itemsTable)
+      .where(
+        and(
+          sql`${itemsTable.minThreshold} IS NOT NULL`,
+          sql`CAST(${itemsTable.currentStock} AS DECIMAL) <= CAST(${itemsTable.minThreshold} AS DECIMAL)`,
+        )
+      )
+      .orderBy(itemsTable.name);
+
+    if (!items.length) {
+      await ctx.reply("✅ *Всё в норме!*\n\nКритически низких остатков нет.", { parse_mode: "Markdown" });
+      return;
+    }
+
+    const lines = items.map((it) => {
+      const stock = Number(it.currentStock).toFixed(1);
+      const min = Number(it.minThreshold).toFixed(1);
+      return `⚠️ *${it.name}*\nОстаток: *${stock} ${it.unit}* (мин: ${min})`;
+    });
+
+    await ctx.reply(
+      `🚨 *КРИТИЧЕСКИЙ ОСТАТОК — нужно купить!*\n\n${lines.join("\n\n")}`,
+      { parse_mode: "Markdown" }
+    );
+  } catch (err) {
+    logger.error({ err }, "showCriticalStock error");
+    await ctx.reply("Ошибка при получении данных.");
+  }
+}
+
+async function showItemDetail(ctx: Context, itemId: number, role: string) {
+  try {
+    const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, itemId) });
+    if (!item) { await ctx.reply("Товар не найден."); return; }
+
+    const stock = Number(item.currentStock);
+    const min = item.minThreshold ? Number(item.minThreshold) : null;
+    const isCritical = min !== null && stock <= min;
+    const icon = isCritical ? "🔴" : "🟢";
+
+    let text = `${icon} *${item.name}*\n\n`;
+    text += `📦 Остаток: *${stock.toFixed(2)} ${item.unit}*\n`;
+    text += `💰 Цена: ${fmt(Number(item.pricePerUnit))} сом/${item.unit}\n`;
+    text += `💵 Стоимость: *${fmt(stock * Number(item.pricePerUnit))} сом*\n`;
+    if (min !== null) text += `\n🎯 Минимум: ${min.toFixed(1)} ${item.unit}`;
+    if (isCritical) text += `\n\n⚠️ *КРИТИЧЕСКИЙ ОСТАТОК!*`;
+
+    const isAdmin = role === "admin";
+    const canWrite = role === "admin" || role === "manager";
+
+    const inlineButtons: Array<Array<{ text: string; callback_data: string }>> = [];
+    if (canWrite) {
+      inlineButtons.push([
+        { text: `📉 Списать ${item.name}`, callback_data: `wo_start_${item.id}` },
+      ]);
+    }
+    if (isAdmin) {
+      inlineButtons.push([
+        { text: `📥 Пополнить ${item.name}`, callback_data: `rs_start_${item.id}` },
+      ]);
+    }
+
+    await ctx.reply(text, {
+      parse_mode: "Markdown",
+      reply_markup: inlineButtons.length ? { inline_keyboard: inlineButtons } : undefined,
+    });
+  } catch (err) {
+    logger.error({ err }, "showItemDetail error");
+    await ctx.reply("Ошибка при получении данных.");
+  }
+}
+
+// ============================================================================
+// Search
+// ============================================================================
+async function handleSearch(ctx: Context & { chat: { id: number } }, query: string, role: string) {
+  try {
+    const items = await db
+      .select({
+        id: itemsTable.id,
+        name: itemsTable.name,
+        currentStock: itemsTable.currentStock,
+        unit: itemsTable.unit,
+        minThreshold: itemsTable.minThreshold,
+        category: categoriesTable.name,
+      })
+      .from(itemsTable)
+      .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
+      .where(ilike(itemsTable.name, `%${query}%`))
+      .limit(8);
+
+    if (!items.length) {
+      await ctx.reply(
+        `🔍 По запросу «${query}» ничего не найдено.\n\nПопробуйте другой запрос:`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (items.length === 1) {
+      userCtx.set(ctx.chat.id, { mode: "warehouse" });
+      await showItemDetail(ctx, items[0].id, role);
+      return;
+    }
+
+    const keyboard = items.map((it) => {
+      const stock = Number(it.currentStock);
+      const min = it.minThreshold ? Number(it.minThreshold) : null;
+      const warn = min !== null && stock <= min ? " ⚠️" : "";
+      const label = `${it.name} — ${stock.toFixed(1)} ${it.unit}${warn}`;
+      return [{ text: label, callback_data: `item_detail_${it.id}` }];
+    });
+
+    await ctx.reply(
+      `🔍 Найдено *${items.length}* позиций по «${query}»:\n\nВыберите товар для просмотра:`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: { inline_keyboard: keyboard },
+      }
+    );
+    userCtx.set(ctx.chat.id, { mode: "warehouse" });
+  } catch (err) {
+    logger.error({ err }, "handleSearch error");
+    await ctx.reply("Ошибка при поиске.");
+  }
+}
+
+// ============================================================================
+// Settings (admin only)
+// ============================================================================
+async function showSettings(ctx: Context & { chat: { id: number } }) {
+  try {
+    const users = await db
+      .select({
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+        email: usersTable.email,
+        role: usersTable.role,
+        telegramChatId: usersTable.telegramChatId,
+      })
+      .from(usersTable)
+      .orderBy(usersTable.role);
+
+    const lines = users.map((u) => {
+      const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email;
+      const tg = u.telegramChatId ? "✅" : "❌";
+      return `${tg} *${name}* — ${roleLabel(u.role)}`;
+    });
+
+    await ctx.reply(
+      `⚙️ *Настройки и Доступы*\n\n*Пользователи системы:*\n${lines.join("\n")}\n\n✅ — Telegram привязан\n❌ — Telegram не привязан\n\nДля управления ролями используйте веб-интерфейс → Настройки`,
+      { parse_mode: "Markdown" }
+    );
+  } catch (err) {
+    logger.error({ err }, "showSettings error");
+    await ctx.reply("Ошибка загрузки данных.");
+  }
+}
+
+// ============================================================================
+// Report generation
+// ============================================================================
 function getMonthRange() {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1);
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
   return { from, to };
-}
-
-function fmt(n: number) {
-  return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 async function generateReportXlsx(categoryId?: number): Promise<Buffer> {
@@ -173,8 +448,8 @@ async function generateReportXlsx(categoryId?: number): Promise<Buffer> {
     .where(and(...woCond))
     .orderBy(sql`${writeOffsTable.createdAt} ASC`);
 
+  const d = (dt: Date | null) => dt ? new Date(dt).toLocaleDateString("ru-RU") : "—";
   const wb = XLSX.utils.book_new();
-  const d = (d: Date | null) => d ? new Date(d).toLocaleDateString("ru-RU") : "—";
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ["Наименование", "Категория", "Ед.", "Остаток", "Цена (сом)", "Сумма (сом)"],
@@ -191,11 +466,10 @@ async function generateReportXlsx(categoryId?: number): Promise<Buffer> {
     ...writeOffRows.map((r) => [d(r.createdAt), r.itemName ?? "—", r.unit ?? "", Number(r.quantity), Number(r.totalValue), r.reason ?? "—", r.staffName ?? "—"]),
   ]), "Списания");
 
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-  return buf as Buffer;
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }
 
-async function sendTextReport(ctx: Context & { chat: { id: number } }, categoryId?: number) {
+async function sendTextReport(ctx: Context, categoryId?: number) {
   const { from, to } = getMonthRange();
   const label = to.toLocaleString("ru-RU", { month: "long", year: "numeric" });
 
@@ -232,55 +506,73 @@ async function sendTextReport(ctx: Context & { chat: { id: number } }, categoryI
   const totalWo = woRows.reduce((s, r) => s + Number(r.totalValue), 0);
   const totalRc = rcRows.reduce((s, r) => s + Number(r.totalCost), 0);
 
-  const lines = stockRows.slice(0, 20).map((r) =>
-    `• ${r.name}: ${Number(r.currentStock).toFixed(1)} ${r.unit}`
-  );
-  if (stockRows.length > 20) lines.push(`...и ещё ${stockRows.length - 20} позиций`);
+  const lines = stockRows.slice(0, 20).map((r) => `• ${r.name}: ${Number(r.currentStock).toFixed(1)} ${r.unit}`);
+  if (stockRows.length > 20) lines.push(`_...и ещё ${stockRows.length - 20} позиций_`);
 
   await ctx.reply(
     `📄 *Отчёт за ${label}*\n\n` +
-    `*Стоимость склада:* ${fmt(totalStock)} сом\n` +
-    `*Поступлений:* ${fmt(totalRc)} сом\n` +
-    `*Списаний:* ${fmt(totalWo)} сом\n\n` +
+    `💰 Стоимость склада: *${fmt(totalStock)} сом*\n` +
+    `📥 Поступления: ${fmt(totalRc)} сом\n` +
+    `📉 Списания: ${fmt(totalWo)} сом\n\n` +
     `*Остатки:*\n${lines.join("\n")}`,
     { parse_mode: "Markdown" }
   );
 }
 
-// ---------------------------------------------------------------------------
-// Show item selector for breakage
-// ---------------------------------------------------------------------------
-async function showItemSelector(ctx: Context & { chat: { id: number } }) {
+// ============================================================================
+// Write-off (breakage) helpers
+// ============================================================================
+async function startBreakageForItem(ctx: Context & { chat: { id: number } }, itemId: number) {
+  const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, itemId) });
+  if (!item) { await ctx.reply("Товар не найден."); return; }
+  userCtx.set(ctx.chat.id, { mode: "breakage_qty", itemId: item.id, itemName: item.name, itemUnit: item.unit });
+  await ctx.reply(
+    `📉 *Списание: ${item.name}*\n\nТекущий остаток: *${Number(item.currentStock).toFixed(2)} ${item.unit}*\n\nВведите количество для списания:`,
+    { parse_mode: "Markdown" }
+  );
+}
+
+async function startBreakageFlow(ctx: Context & { chat: { id: number } }) {
   try {
     const items = await db
-      .select({ id: itemsTable.id, name: itemsTable.name, unit: itemsTable.unit })
+      .select({ id: itemsTable.id, name: itemsTable.name, unit: itemsTable.unit, currentStock: itemsTable.currentStock })
       .from(itemsTable)
       .orderBy(itemsTable.name)
       .limit(25);
 
-    if (!items.length) {
-      await ctx.reply("В базе нет позиций. Добавьте товары через веб-интерфейс.");
-      return;
-    }
+    if (!items.length) { await ctx.reply("В базе нет позиций."); return; }
 
-    states.set(ctx.chat.id, { step: "await_item" });
+    const keyboard = items.map((it) => [
+      { text: `${it.name} — ${Number(it.currentStock).toFixed(1)} ${it.unit}`, callback_data: `item_${it.id}` },
+    ]);
+    keyboard.push([{ text: "❌ Отмена", callback_data: "cancel" }]);
+
     await ctx.reply("📋 *Выберите позицию для списания:*", {
       parse_mode: "Markdown",
-      reply_markup: {
-        inline_keyboard: items.map((it) => [
-          { text: `${it.name} (${it.unit})`, callback_data: `item_${it.id}` },
-        ]),
-      },
+      reply_markup: { inline_keyboard: keyboard },
     });
   } catch (err) {
-    logger.error({ err }, "Telegram showItemSelector error");
-    await ctx.reply("Произошла ошибка. Попробуйте снова.");
+    logger.error({ err }, "startBreakageFlow error");
+    await ctx.reply("Ошибка загрузки товаров.");
   }
 }
 
-// ---------------------------------------------------------------------------
+// ============================================================================
+// Restock (receipt creation) helpers
+// ============================================================================
+async function startRestockForItem(ctx: Context & { chat: { id: number } }, itemId: number) {
+  const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, itemId) });
+  if (!item) { await ctx.reply("Товар не найден."); return; }
+  userCtx.set(ctx.chat.id, { mode: "restock_qty", itemId: item.id, itemName: item.name, itemUnit: item.unit });
+  await ctx.reply(
+    `📥 *Пополнение: ${item.name}*\n\nТекущий остаток: *${Number(item.currentStock).toFixed(2)} ${item.unit}*\nЦена: ${fmt(Number(item.pricePerUnit))} сом/${item.unit}\n\nВведите количество для пополнения:`,
+    { parse_mode: "Markdown" }
+  );
+}
+
+// ============================================================================
 // Bot init
-// ---------------------------------------------------------------------------
+// ============================================================================
 export function initTelegramBot(): import("express").RequestHandler | undefined {
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   if (!token) {
@@ -290,161 +582,37 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
 
   bot = new Telegraf(token);
 
-  // ---- /start ----
-  bot.start(async (ctx) => {
-    states.delete(ctx.chat.id);
-    await showMainMenu(ctx as Parameters<typeof showMainMenu>[0]);
-  });
+  // ---- /start and /menu ----
+  async function handleStart(ctx: Context & { chat: { id: number } }) {
+    userCtx.set(ctx.chat.id, { mode: "main" });
+    const user = await requireAuth(ctx);
+    if (!user) return;
+    await sendMainMenu(ctx, user);
+  }
 
-  // ---- /menu ----
-  bot.command("menu", async (ctx) => {
-    states.delete(ctx.chat.id);
-    authStates.delete(ctx.chat.id);
-    await showMainMenu(ctx as Parameters<typeof showMainMenu>[0]);
-  });
+  bot.start(handleStart);
+  bot.command("menu", handleStart);
 
-  // ---- /myid ----
   bot.command("myid", async (ctx) => {
-    await ctx.reply(`Ваш Telegram Chat ID: \`${ctx.chat.id}\``, { parse_mode: "Markdown" });
+    await ctx.reply(`🪪 Ваш Chat ID: \`${ctx.chat.id}\``, { parse_mode: "Markdown" });
   });
 
-  // ---- /cancel ----
-  bot.command("cancel", (ctx) => {
-    states.delete(ctx.chat.id);
-    authStates.delete(ctx.chat.id);
-    ctx.reply("Операция отменена. Отправьте /menu для начала.");
-  });
-
-  // ---- Profile ----
-  bot.action("show_profile", async (ctx) => {
-    await ctx.answerCbQuery();
-    const chatId = ctx.chat!.id;
-    const user = await getUserByChat(chatId);
-    if (!user) {
-      await ctx.reply("Аккаунт не привязан. Отправьте /start для входа.");
-      return;
-    }
-    await ctx.reply(
-      `👤 *Профиль*\n\nEmail: ${user.email}\nРоль: *${getRoleLabel(user.role)}*\nChat ID: \`${chatId}\``,
-      { parse_mode: "Markdown" }
-    );
-  });
-
-  // ---- Stock ----
-  bot.action("show_stock", async (ctx) => {
-    await ctx.answerCbQuery();
-    try {
-      const items = await db
-        .select({
-          name: itemsTable.name,
-          currentStock: itemsTable.currentStock,
-          unit: itemsTable.unit,
-          minThreshold: itemsTable.minThreshold,
-          category: categoriesTable.name,
-        })
-        .from(itemsTable)
-        .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
-        .orderBy(categoriesTable.name, itemsTable.name)
-        .limit(30);
-
-      if (!items.length) {
-        await ctx.reply("Позиций на складе нет.");
-        return;
-      }
-
-      const lines = items.map((it) => {
-        const stock = Number(it.currentStock).toFixed(1);
-        const warn = it.minThreshold && Number(it.currentStock) <= Number(it.minThreshold) ? " ⚠️" : "";
-        const cat = it.category ? `[${it.category}] ` : "";
-        return `• ${cat}*${it.name}*: ${stock} ${it.unit}${warn}`;
+  bot.command("cancel", async (ctx) => {
+    userCtx.delete(ctx.chat.id);
+    const user = await getUserByChat(ctx.chat.id);
+    if (user) {
+      userCtx.set(ctx.chat.id, { mode: "main" });
+      await ctx.reply("✅ Операция отменена.", {
+        reply_markup: mainKeyboard(user.role),
       });
-
-      await ctx.reply(
-        `📦 *Остатки на складе*\n\n${lines.join("\n")}`,
-        { parse_mode: "Markdown" }
-      );
-    } catch (err) {
-      logger.error({ err }, "show_stock error");
-      await ctx.reply("Ошибка при получении данных.");
+    } else {
+      await ctx.reply("Операция отменена. Введите /start для начала.");
     }
   });
 
-  // ---- Critical stock ----
-  bot.action("show_critical", async (ctx) => {
-    await ctx.answerCbQuery();
-    try {
-      const role = await getUserRole(ctx.chat!.id);
-      if (role !== "admin") {
-        await ctx.reply("⛔ Нет доступа.");
-        return;
-      }
-      const items = await db
-        .select({
-          name: itemsTable.name,
-          currentStock: itemsTable.currentStock,
-          minThreshold: itemsTable.minThreshold,
-          unit: itemsTable.unit,
-        })
-        .from(itemsTable)
-        .where(
-          and(
-            sql`${itemsTable.minThreshold} IS NOT NULL`,
-            sql`CAST(${itemsTable.currentStock} AS DECIMAL) <= CAST(${itemsTable.minThreshold} AS DECIMAL)`,
-          )
-        )
-        .orderBy(itemsTable.name);
-
-      if (!items.length) {
-        await ctx.reply("✅ Всё в норме — критически низких остатков нет.");
-        return;
-      }
-
-      const lines = items.map((it) =>
-        `🔴 *${it.name}*: ${Number(it.currentStock).toFixed(1)} ${it.unit} (мин: ${Number(it.minThreshold).toFixed(1)})`
-      );
-
-      await ctx.reply(
-        `⚠️ *Критический остаток — нужно купить*\n\n${lines.join("\n")}`,
-        { parse_mode: "Markdown" }
-      );
-    } catch (err) {
-      logger.error({ err }, "show_critical error");
-      await ctx.reply("Ошибка при получении данных.");
-    }
-  });
-
-  // ---- Report: pick category ----
-  bot.action("report_pick_cat", async (ctx) => {
-    await ctx.answerCbQuery();
-    const role = await getUserRole(ctx.chat!.id);
-    if (!role || !["admin", "manager", "accountant"].includes(role)) {
-      await ctx.reply("⛔ Нет доступа.");
-      return;
-    }
-    try {
-      const cats = await db
-        .select({ id: categoriesTable.id, name: categoriesTable.name })
-        .from(categoriesTable)
-        .orderBy(categoriesTable.name);
-
-      const keyboard: Array<Array<{ text: string; callback_data: string }>> = [
-        [{ text: "📋 Все категории", callback_data: "rep_fmt_all" }],
-        ...cats.map((c) => [{ text: c.name, callback_data: `rep_fmt_${c.id}` }]),
-      ];
-
-      await ctx.reply("📊 *Выберите категорию для отчёта:*\n_(за текущий месяц)_", {
-        parse_mode: "Markdown",
-        reply_markup: { inline_keyboard: keyboard },
-      });
-    } catch (err) {
-      logger.error({ err }, "report_pick_cat error");
-      await ctx.reply("Ошибка загрузки категорий.");
-    }
-  });
-
-  // ---- Report: pick format ----
+  // ---- Analytics inline actions ----
   bot.action(/^rep_fmt_(.+)$/, async (ctx) => {
-    await ctx.answerCbQuery("Выберите формат");
+    await ctx.answerCbQuery();
     const catRaw = ctx.match[1];
     const catId = catRaw === "all" ? undefined : Number(catRaw);
 
@@ -455,149 +623,106 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
     }
 
     await ctx.reply(
-      `*${catName}* — выберите формат:`,
+      `📊 *${catName}* — выберите формат:`,
       {
         parse_mode: "Markdown",
         reply_markup: {
-          inline_keyboard: [
-            [
-              { text: "📊 Excel файл", callback_data: `rep_xlsx_${catRaw}` },
-              { text: "📄 Текстовый", callback_data: `rep_txt_${catRaw}` },
-            ],
-          ],
+          inline_keyboard: [[
+            { text: "📊 Excel файл", callback_data: `rep_xlsx_${catRaw}` },
+            { text: "📄 Текстовый", callback_data: `rep_txt_${catRaw}` },
+          ]],
         },
       }
     );
   });
 
-  // ---- Report: send xlsx ----
   bot.action(/^rep_xlsx_(.+)$/, async (ctx) => {
-    await ctx.answerCbQuery("Генерирую Excel...");
+    await ctx.answerCbQuery("Генерирую Excel…");
     const catRaw = ctx.match[1];
     const catId = catRaw === "all" ? undefined : Number(catRaw);
-
     let catName = "all";
     if (catId) {
       const cat = await db.query.categoriesTable.findFirst({ where: eq(categoriesTable.id, catId) });
       catName = cat?.name ?? catName;
     }
-
     try {
-      await ctx.reply("⏳ Генерирую отчёт...");
+      await ctx.reply("⏳ Генерирую отчёт, подождите...");
       const buf = await generateReportXlsx(catId);
       const now = new Date();
       const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      const filename = `msklad-${catName.replace(/\s+/g, "_")}-${month}.xlsx`;
-
-      await ctx.replyWithDocument({
-        source: buf,
-        filename,
-      }, {
-        caption: `📊 Отчёт за ${now.toLocaleString("ru-RU", { month: "long", year: "numeric" })}${catId ? ` — ${catName}` : ""}`,
-      });
-    } catch (err) {
-      logger.error({ err }, "rep_xlsx error");
-      await ctx.reply("Ошибка при генерации отчёта. Попробуйте позже.");
-    }
-  });
-
-  // ---- Report: send text ----
-  bot.action(/^rep_txt_(.+)$/, async (ctx) => {
-    await ctx.answerCbQuery("Формирую отчёт...");
-    const catRaw = ctx.match[1];
-    const catId = catRaw === "all" ? undefined : Number(catRaw);
-
-    try {
-      await sendTextReport(ctx as Parameters<typeof sendTextReport>[0], catId);
-    } catch (err) {
-      logger.error({ err }, "rep_txt error");
-      await ctx.reply("Ошибка при формировании отчёта.");
-    }
-  });
-
-  // ---- Rentals ----
-  bot.action("show_rentals", async (ctx) => {
-    await ctx.answerCbQuery();
-    try {
-      const rentals = await db
-        .select({
-          renterName: rentalsTable.renterName,
-          renterPhone: rentalsTable.renterPhone,
-          quantity: rentalsTable.quantity,
-          plannedReturnAt: rentalsTable.plannedReturnAt,
-          itemName: itemsTable.name,
-          itemUnit: itemsTable.unit,
-        })
-        .from(rentalsTable)
-        .leftJoin(itemsTable, eq(rentalsTable.itemId, itemsTable.id))
-        .where(eq(rentalsTable.status, "active"))
-        .limit(15);
-
-      if (!rentals.length) {
-        await ctx.reply("Активных аренд нет.");
-        return;
-      }
-
-      const now = new Date();
-      const lines = rentals.map((r) => {
-        const overdue = r.plannedReturnAt < now ? " 🔴 ПРОСРОЧЕНО" : "";
-        const date = r.plannedReturnAt.toLocaleDateString("ru-RU");
-        return `• *${r.itemName}* × ${r.quantity} ${r.itemUnit}\n  ${r.renterName}${r.renterPhone ? ` (${r.renterPhone})` : ""} — до ${date}${overdue}`;
-      });
-
-      await ctx.reply(
-        `🏷️ *Активные аренды*\n\n${lines.join("\n\n")}`,
-        { parse_mode: "Markdown" }
+      await ctx.replyWithDocument(
+        { source: buf, filename: `msklad-${catName.replace(/\s+/g, "_")}-${month}.xlsx` },
+        { caption: `📊 Отчёт за ${now.toLocaleString("ru-RU", { month: "long", year: "numeric" })}${catId ? ` — ${catName}` : ""}` }
       );
     } catch (err) {
-      logger.error({ err }, "show_rentals error");
-      await ctx.reply("Ошибка при получении данных.");
+      logger.error({ err }, "rep_xlsx error");
+      await ctx.reply("Ошибка при генерации. Попробуйте позже.");
     }
   });
 
-  // ---- Breakage flow ----
-  bot.action("start_breakage", async (ctx) => {
+  bot.action(/^rep_txt_(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery("Формирую отчёт…");
+    const catRaw = ctx.match[1];
+    const catId = catRaw === "all" ? undefined : Number(catRaw);
+    try {
+      await sendTextReport(ctx, catId);
+    } catch (err) {
+      logger.error({ err }, "rep_txt error");
+      await ctx.reply("Ошибка при формировании.");
+    }
+  });
+
+  // ---- Stock item detail (from search results) ----
+  bot.action(/^item_detail_(\d+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const chatId = ctx.chat!.id;
+    const role = await getUserRole(chatId) ?? "warehouse";
+    await showItemDetail(ctx, Number(ctx.match[1]), role);
+  });
+
+  // ---- Write-off: item selected from list ----
+  bot.action(/^item_(\d+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await startBreakageForItem(ctx as Parameters<typeof startBreakageForItem>[0], Number(ctx.match[1]));
+  });
+
+  // ---- Write-off: started from item detail inline button ----
+  bot.action(/^wo_start_(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     const role = await getUserRole(ctx.chat!.id);
     if (role !== "admin" && role !== "manager") {
-      await ctx.reply("⛔ У вас нет прав для регистрации списания.");
+      await ctx.reply("⛔ Нет прав для списания.");
       return;
     }
-    await showItemSelector(ctx as Parameters<typeof showItemSelector>[0]);
+    await startBreakageForItem(ctx as Parameters<typeof startBreakageForItem>[0], Number(ctx.match[1]));
   });
 
-  bot.action(/^item_(\d+)$/, async (ctx) => {
+  // ---- Restock: started from item detail inline button ----
+  bot.action(/^rs_start_(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    const chatId = ctx.chat!.id;
-    const itemId = Number(ctx.match[1]);
-    try {
-      const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, itemId) });
-      if (!item) { await ctx.reply("Позиция не найдена."); return; }
-      states.set(chatId, { step: "await_qty", itemId: item.id, itemName: item.name, itemUnit: item.unit });
-      await ctx.reply(`Позиция: *${item.name}*\n\nВведите количество:`, { parse_mode: "Markdown" });
-    } catch (err) {
-      logger.error({ err }, "Telegram item select error");
-      await ctx.reply("Ошибка. Попробуйте снова.");
+    const role = await getUserRole(ctx.chat!.id);
+    if (role !== "admin") {
+      await ctx.reply("⛔ Только Завхоз может пополнять склад.");
+      return;
     }
+    await startRestockForItem(ctx as Parameters<typeof startRestockForItem>[0], Number(ctx.match[1]));
   });
 
+  // ---- Write-off: reason selected ----
   bot.action(/^reason_(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     const chatId = ctx.chat!.id;
-    const state = states.get(chatId);
-    if (!state || state.step !== "await_reason") {
-      await ctx.reply("Сессия устарела. Начните заново с /menu");
+    const ctx2 = userCtx.get(chatId);
+    if (!ctx2 || ctx2.mode !== "breakage_reason" || !ctx2.itemId || !ctx2.qty) {
+      await ctx.reply("Сессия устарела. Начните заново.");
       return;
     }
 
     const idx = Number(ctx.match[1]);
     if (idx < 0 || idx >= REASONS.length) { await ctx.reply("Неверный выбор."); return; }
-
     const reason = REASONS[idx];
-    const { itemId, itemName, itemUnit, qty } = state;
-    states.delete(chatId);
-
-    if (!itemId || !qty) { await ctx.reply("Ошибка сессии. Начните заново."); return; }
+    const { itemId, itemName, itemUnit, qty } = ctx2;
+    userCtx.delete(chatId);
 
     try {
       const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, itemId) });
@@ -615,7 +740,7 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
         action: "create",
         entityType: "write-off",
         entityId: woRow?.id,
-        details: `Telegram bot: ${itemName} × ${qty} (${reason})`,
+        details: `Telegram: ${itemName} × ${qty} (${reason})`,
       });
 
       await db
@@ -623,12 +748,6 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
         .set({ currentStock: sql`GREATEST(0, CAST(${itemsTable.currentStock} AS DECIMAL) - ${qty})` })
         .where(eq(itemsTable.id, itemId));
 
-      await ctx.reply(
-        `✅ Списание зарегистрировано:\n\n*${itemName}* — ${qty} ${itemUnit ?? "ед."}\nПричина: ${reason}\nСумма: ${fmt(totalValue)} сом`,
-        { parse_mode: "Markdown" }
-      );
-
-      // Notify all other admins about this bot-initiated write-off
       const user = await getUserByChat(chatId);
       void sendWriteOffNotification({
         itemName: itemName ?? "—",
@@ -636,7 +755,7 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
         quantity: qty,
         reason,
         totalValue,
-        recordedByName: user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email : "Telegram-бот",
+        recordedByName: user ? (`${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email) : "Telegram-бот",
         excludeChatId: chatId,
       });
 
@@ -645,86 +764,256 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
         .from(itemsTable)
         .where(eq(itemsTable.id, itemId));
 
+      await ctx.reply(
+        `✅ *Списание зарегистрировано!*\n\n📦 ${itemName}\n📉 Количество: *${qty} ${itemUnit ?? "ед."}*\n💰 Сумма: *${fmt(totalValue)} сом*\n📋 Причина: ${reason}`,
+        { parse_mode: "Markdown" }
+      );
+
       if (updated?.minThreshold && Number(updated.currentStock) <= Number(updated.minThreshold)) {
         await sendLowStockAlert(itemName ?? "—", Number(updated.currentStock), Number(updated.minThreshold), item?.unit ?? "ед.");
       }
+
+      // Return to warehouse menu
+      if (user) {
+        userCtx.set(chatId, { mode: "warehouse" });
+        await ctx.reply("Возврат в меню склада:", { reply_markup: warehouseKeyboard(user.role) });
+      }
     } catch (err) {
-      logger.error({ err }, "Telegram breakage write-off error");
+      logger.error({ err }, "Telegram write-off error");
       await ctx.reply("Ошибка при сохранении. Попробуйте снова.");
     }
   });
 
+  // ---- Cancel ----
   bot.action("cancel", async (ctx) => {
     await ctx.answerCbQuery("Отменено");
-    states.delete(ctx.chat!.id);
-    authStates.delete(ctx.chat!.id);
-    await ctx.reply("Операция отменена. Отправьте /menu для начала.");
+    const chatId = ctx.chat!.id;
+    userCtx.delete(chatId);
+    const user = await getUserByChat(chatId);
+    if (user) {
+      userCtx.set(chatId, { mode: "main" });
+      await ctx.reply("✅ Отменено. Возврат в главное меню:", { reply_markup: mainKeyboard(user.role) });
+    } else {
+      await ctx.reply("Отменено.");
+    }
   });
 
-  // ---- Text handler (auth + breakage qty) ----
+  // ---- Profile ----
+  bot.action("show_profile", async (ctx) => {
+    await ctx.answerCbQuery();
+    const chatId = ctx.chat!.id;
+    const user = await getUserByChat(chatId);
+    if (!user) { await ctx.reply("Аккаунт не привязан. Отправьте /start."); return; }
+    await ctx.reply(
+      `👤 *Профиль*\n\nEmail: ${user.email}\nРоль: *${roleLabel(user.role)}*\nChat ID: \`${chatId}\``,
+      { parse_mode: "Markdown" }
+    );
+  });
+
+  // ---- Rentals (active) ----
+  bot.action("show_rentals", async (ctx) => {
+    await ctx.answerCbQuery();
+    try {
+      const rentals = await db
+        .select({
+          renterName: rentalsTable.renterName,
+          renterPhone: rentalsTable.renterPhone,
+          quantity: rentalsTable.quantity,
+          plannedReturnAt: rentalsTable.plannedReturnAt,
+          itemName: itemsTable.name,
+          itemUnit: itemsTable.unit,
+        })
+        .from(rentalsTable)
+        .leftJoin(itemsTable, eq(rentalsTable.itemId, itemsTable.id))
+        .where(eq(rentalsTable.status, "active"))
+        .limit(15);
+
+      if (!rentals.length) { await ctx.reply("✅ Активных аренд нет."); return; }
+      const now = new Date();
+      const lines = rentals.map((r) => {
+        const overdue = r.plannedReturnAt < now ? " 🔴 ПРОСРОЧЕНО" : "";
+        const date = r.plannedReturnAt.toLocaleDateString("ru-RU");
+        return `• *${r.itemName}* × ${r.quantity} ${r.itemUnit}\n  ${r.renterName}${r.renterPhone ? ` (${r.renterPhone})` : ""} — до ${date}${overdue}`;
+      });
+      await ctx.reply(`🏷️ *Активные аренды* (${rentals.length}):\n\n${lines.join("\n\n")}`, { parse_mode: "Markdown" });
+    } catch (err) {
+      logger.error({ err }, "show_rentals error");
+      await ctx.reply("Ошибка при получении данных.");
+    }
+  });
+
+  // ============================== TEXT HANDLER ==============================
   bot.on("text", async (ctx) => {
     const chatId = ctx.chat.id;
     const text = ctx.message.text.trim();
-
-    // Skip commands
     if (text.startsWith("/")) return;
 
-    // ---- Auth: awaiting email ----
-    const authState = authStates.get(chatId);
-    if (authState?.step === "await_email") {
+    // --- Require auth first ---
+    const user = await getUserByChat(chatId);
+    const ctx2 = userCtx.get(chatId);
+
+    // Auth flow
+    if (!user || ctx2?.mode === "auth") {
       const email = text.toLowerCase();
       try {
-        const user = await db.query.usersTable.findFirst({
-          where: eq(usersTable.email, email),
-        });
-        if (!user) {
-          await ctx.reply(
-            "❌ Email не найден в системе.\n\nПроверьте написание или обратитесь к администратору.\nПовторите ввод:"
-          );
+        const found = await db.query.usersTable.findFirst({ where: eq(usersTable.email, email) });
+        if (!found) {
+          await ctx.reply("❌ Email не найден.\n\nПроверьте написание и повторите ввод:");
           return;
         }
-        // Link this chat ID
-        await db
-          .update(usersTable)
-          .set({ telegramChatId: String(chatId) })
-          .where(eq(usersTable.id, user.id));
-
-        authStates.delete(chatId);
+        await db.update(usersTable).set({ telegramChatId: String(chatId) }).where(eq(usersTable.id, found.id));
+        userCtx.set(chatId, { mode: "main" });
         await ctx.reply(
-          `✅ Вы успешно вошли как *${user.firstName ?? user.email}* (${getRoleLabel(user.role)})`,
+          `✅ Вы вошли как *${found.firstName ?? found.email}* (${roleLabel(found.role)})`,
           { parse_mode: "Markdown" }
         );
-        await showMainMenu(ctx as Parameters<typeof showMainMenu>[0]);
+        await sendMainMenu(ctx as Parameters<typeof sendMainMenu>[0], found);
       } catch (err) {
         logger.error({ err }, "Telegram email auth error");
-        await ctx.reply("Ошибка авторизации. Попробуйте позже или отправьте /start.");
+        await ctx.reply("Ошибка авторизации. Отправьте /start.");
       }
       return;
     }
 
-    // ---- Breakage: awaiting quantity ----
-    const state = states.get(chatId);
-    if (!state || state.step !== "await_qty") return;
+    const role = user.role;
+    const isAdmin = role === "admin";
+    const canWrite = isAdmin || role === "manager";
 
-    const qty = Number(text.replace(",", "."));
-    if (isNaN(qty) || qty <= 0) {
-      await ctx.reply("Введите положительное число.");
+    // ---- ReplyKeyboard button routing ----
+    if (text === BTN.ANALYTICS) {
+      userCtx.set(chatId, { mode: "analytics" });
+      await sendAnalyticsMenu(ctx);
       return;
     }
 
-    states.set(chatId, { ...state, step: "await_reason", qty });
-    await ctx.reply(`Количество: *${qty}*\n\nВыберите причину:`, {
-      parse_mode: "Markdown",
-      reply_markup: {
-        inline_keyboard: REASONS.map((r, i) => [{ text: r, callback_data: `reason_${i}` }]),
-      },
-    });
+    if (text === BTN.WAREHOUSE) {
+      await sendWarehouseMenu(ctx as Parameters<typeof sendWarehouseMenu>[0], role);
+      return;
+    }
+
+    if (text === BTN.SETTINGS) {
+      if (!isAdmin) { await ctx.reply("⛔ Только для Завхоза."); return; }
+      await showSettings(ctx as Parameters<typeof showSettings>[0]);
+      return;
+    }
+
+    if (text === BTN.PROFILE) {
+      await ctx.reply(
+        `👤 *Профиль*\n\nEmail: ${user.email}\nРоль: *${roleLabel(role)}*\nChat ID: \`${chatId}\``,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (text === BTN.BACK) {
+      userCtx.set(chatId, { mode: "main" });
+      await ctx.reply("🏪 Главное меню:", { reply_markup: mainKeyboard(role) });
+      return;
+    }
+
+    if (text === BTN.ALL_STOCK) {
+      await showAllStock(ctx as Parameters<typeof showAllStock>[0]);
+      return;
+    }
+
+    if (text === BTN.CRITICAL) {
+      await showCriticalStock(ctx);
+      return;
+    }
+
+    if (text === BTN.BREAKAGE) {
+      if (!canWrite) { await ctx.reply("⛔ Нет прав для списания."); return; }
+      await startBreakageFlow(ctx as Parameters<typeof startBreakageFlow>[0]);
+      return;
+    }
+
+    if (text === BTN.SEARCH) {
+      userCtx.set(chatId, { mode: "search" });
+      await ctx.reply("🔍 *Поиск товара*\n\nВведите название (или часть названия):", {
+        parse_mode: "Markdown",
+      });
+      return;
+    }
+
+    // ---- State-based input ----
+    const mode = ctx2?.mode;
+
+    if (mode === "search") {
+      await handleSearch(ctx as Parameters<typeof handleSearch>[0], text, role);
+      return;
+    }
+
+    if (mode === "breakage_qty") {
+      const qty = Number(text.replace(",", "."));
+      if (isNaN(qty) || qty <= 0) { await ctx.reply("Введите положительное число."); return; }
+      userCtx.set(chatId, { ...ctx2!, mode: "breakage_reason", qty });
+      await ctx.reply(
+        `📉 Количество: *${qty} ${ctx2!.itemUnit ?? "ед."}*\n\nВыберите причину списания:`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              ...REASONS.slice(0, 3).map((r, i) => [{ text: r, callback_data: `reason_${i}` }]),
+              ...REASONS.slice(3).map((r, i) => [{ text: r, callback_data: `reason_${i + 3}` }]),
+              [{ text: "❌ Отмена", callback_data: "cancel" }],
+            ],
+          },
+        }
+      );
+      return;
+    }
+
+    if (mode === "restock_qty") {
+      const qty = Number(text.replace(",", "."));
+      if (isNaN(qty) || qty <= 0) { await ctx.reply("Введите положительное число."); return; }
+      if (!ctx2?.itemId) { await ctx.reply("Ошибка сессии. Начните заново."); return; }
+
+      try {
+        const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, ctx2.itemId) });
+        if (!item) { await ctx.reply("Товар не найден."); return; }
+
+        const totalCost = Number(item.pricePerUnit) * qty;
+        await db.insert(receiptsTable).values({
+          itemId: item.id,
+          quantity: String(qty),
+          pricePerUnit: item.pricePerUnit,
+          totalCost: String(totalCost),
+          supplier: "Через Telegram-бот",
+          notes: `Пополнение через Telegram`,
+        });
+
+        await db
+          .update(itemsTable)
+          .set({ currentStock: sql`CAST(${itemsTable.currentStock} AS DECIMAL) + ${qty}` })
+          .where(eq(itemsTable.id, item.id));
+
+        await logAudit({ action: "create", entityType: "receipt", details: `Telegram restock: ${item.name} × ${qty}` });
+
+        const [updated] = await db.select({ currentStock: itemsTable.currentStock }).from(itemsTable).where(eq(itemsTable.id, item.id));
+
+        userCtx.set(chatId, { mode: "warehouse" });
+        await ctx.reply(
+          `✅ *Пополнение зафиксировано!*\n\n📦 ${item.name}\n📥 Добавлено: *${qty} ${item.unit}*\n📊 Новый остаток: *${Number(updated?.currentStock ?? 0).toFixed(2)} ${item.unit}*\n💰 Сумма: ${fmt(totalCost)} сом`,
+          { parse_mode: "Markdown", reply_markup: warehouseKeyboard(role) }
+        );
+      } catch (err) {
+        logger.error({ err }, "Telegram restock error");
+        await ctx.reply("Ошибка при пополнении. Попробуйте снова.");
+      }
+      return;
+    }
+
+    // Default: show main menu hint
+    await ctx.reply(
+      "Используйте кнопки меню ниже или отправьте /menu для возврата в главное меню.",
+      { reply_markup: mainKeyboard(role) }
+    );
   });
 
+  // ============================== WEBHOOK SETUP ==============================
   const devDomain = process.env["REPLIT_DEV_DOMAIN"];
 
   if (devDomain) {
-    // Webhook mode — avoids node-fetch AbortSignal incompatibility with Node 18+
     const webhookPath = `/bot${token.slice(-12)}`;
     const webhookUrl = `https://${devDomain}/api${webhookPath}`;
 
@@ -740,25 +1029,23 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
     return bot.webhookCallback(webhookPath);
   }
 
-  // Fallback: polling (for local dev without REPLIT_DEV_DOMAIN)
-  bot
-    .launch()
+  // Polling fallback
+  bot.launch()
     .then(() => {
       logger.info("Telegram bot started (polling)");
       void checkOverdueRentals();
       setInterval(() => { void checkOverdueRentals(); }, 60 * 60 * 1000);
     })
-    .catch((err) => logger.error({ err }, "Failed to start Telegram bot (polling)"));
+    .catch((err) => logger.error({ err }, "Failed to start Telegram bot"));
 
   process.once("SIGINT", () => bot?.stop("SIGINT"));
   process.once("SIGTERM", () => bot?.stop("SIGTERM"));
   return undefined;
 }
 
-// ---------------------------------------------------------------------------
-// Exported notification helpers
-// ---------------------------------------------------------------------------
-
+// ============================================================================
+// Exported notification helpers (called from other routes)
+// ============================================================================
 export async function sendWriteOffNotification(params: {
   itemName: string;
   unit: string;
@@ -772,7 +1059,7 @@ export async function sendWriteOffNotification(params: {
   if (!bot) return;
   try {
     const admins = await db
-      .select({ telegramChatId: usersTable.telegramChatId, role: usersTable.role })
+      .select({ telegramChatId: usersTable.telegramChatId })
       .from(usersTable)
       .where(eq(usersTable.role, "admin"));
 
@@ -810,8 +1097,7 @@ export async function sendLowStockAlert(
       .from(usersTable)
       .where(eq(usersTable.role, "admin"));
 
-    const text =
-      `⚠️ *Низкий остаток*\n\n*${itemName}*: ${currentStock} ${unit}\nМинимум: ${minThreshold} ${unit}\n\nПроверьте запасы в M-Sklad.`;
+    const text = `⚠️ *НИЗКИЙ ОСТАТОК!*\n\n*${itemName}*\nОстаток: *${currentStock} ${unit}*\nМинимум: ${minThreshold} ${unit}\n\nПроверьте запасы в M-Sklad.`;
 
     for (const admin of admins) {
       if (!admin.telegramChatId) continue;
