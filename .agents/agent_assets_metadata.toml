@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "d_Ii_s_On9YIU-G0xsC9k"
+uri = "file://README.md"
+type = "text"
+title = "M-Sklad — Инструкция пользователя"
