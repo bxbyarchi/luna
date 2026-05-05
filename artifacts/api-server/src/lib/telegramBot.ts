@@ -1043,11 +1043,15 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
   });
 
   // ============================== WEBHOOK SETUP ==============================
-  const devDomain = process.env["REPLIT_DEV_DOMAIN"];
+  // In production use the .replit.app domain; in dev use the .replit.dev tunnel.
+  const isProduction = process.env.NODE_ENV === "production";
+  const activeDomain = isProduction
+    ? (process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim() ?? process.env["REPLIT_DEV_DOMAIN"])
+    : process.env["REPLIT_DEV_DOMAIN"];
 
-  if (devDomain) {
+  if (activeDomain) {
     const webhookPath = `/bot${token.slice(-12)}`;
-    const webhookUrl = `https://${devDomain}/api${webhookPath}`;
+    const webhookUrl = `https://${activeDomain}/api${webhookPath}`;
 
     bot.telegram
       .setWebhook(webhookUrl)
