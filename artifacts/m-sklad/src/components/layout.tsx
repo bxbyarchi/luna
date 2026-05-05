@@ -48,7 +48,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Боковая панель */}
       <div className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col text-sidebar-foreground">
         <div className="p-6">
-          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="M-Sklad Logo" className="h-8" />
+          <div className="flex items-center gap-2">
+            <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="M-Sklad" className="h-8 w-8" />
+            <span className="text-base font-semibold tracking-tight">M-Sklad</span>
+          </div>
         </div>
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           {navigation.map((item) => {

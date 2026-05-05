@@ -68,11 +68,17 @@ export default function Onboarding() {
   return (
     <div className="min-h-[100dvh] flex items-center justify-center bg-muted/30 p-4">
       <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight">Добро пожаловать!</h1>
-          <p className="text-muted-foreground">
-            Выберите вашу роль в системе. Это определит, какие функции вам будут доступны.
-          </p>
+        <div className="text-center space-y-4">
+          <div className="flex justify-center items-center gap-2">
+            <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="M-Sklad" className="h-10 w-10" />
+            <span className="text-xl font-semibold tracking-tight text-foreground">M-Sklad</span>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold tracking-tight">Добро пожаловать!</h1>
+            <p className="text-muted-foreground">
+              Выберите вашу роль в системе. Это определит, какие функции вам будут доступны.
+            </p>
+          </div>
         </div>
 
         <div className="grid gap-3">

@@ -6,7 +6,10 @@ export default function Landing() {
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
       <header className="px-8 py-6 flex justify-between items-center border-b border-border">
-        <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="M-Sklad" className="h-8" />
+        <div className="flex items-center gap-2">
+          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="M-Sklad" className="h-8 w-8" />
+          <span className="text-lg font-semibold tracking-tight text-foreground">M-Sklad</span>
+        </div>
         <div className="space-x-4">
           <Link href="/sign-in">
             <Button variant="outline" data-testid="link-signin">Войти</Button>

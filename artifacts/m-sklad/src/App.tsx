@@ -291,8 +291,8 @@ function ClerkProviderWithRoutes() {
       localization={{
         signIn: {
           start: {
-            title: "Sign in to M-Sklad",
-            subtitle: "Enter your credentials to access operations command center",
+            title: "Войти в M-Sklad",
+            subtitle: "Введите данные для доступа к системе управления складом",
           },
         },
       }}
