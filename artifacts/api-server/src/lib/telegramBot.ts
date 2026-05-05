@@ -376,7 +376,7 @@ async function showSettings(ctx: Context & { chat: { id: number } }) {
     });
 
     await ctx.reply(
-      `⚙️ *Настройки и Доступы*\n\n*Пользователи системы:*\n${lines.join("\n")}\n\n✅ — Telegram привязан\n❌ — Telegram не привязан\n\nДля управления ролями используйте веб-интерфейс → Настройки`,
+      `⚙️ *Настройки и Доступы*\n\n*Пользователи системы:*\n${lines.join("\n")}\n\n✅ — Telegram привязан\n❌ — Telegram не привязан\n\n📋 *Команды:*\n/logout — сменить аккаунт (отвязать Telegram)\n/myid — узнать свой Chat ID\n\nДля управления ролями и пользователями используйте веб-интерфейс → Настройки`,
       { parse_mode: "Markdown" }
     );
   } catch (err) {
@@ -607,6 +607,31 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
       });
     } else {
       await ctx.reply("Операция отменена. Введите /start для начала.");
+    }
+  });
+
+  bot.command("logout", async (ctx) => {
+    const chatId = ctx.chat.id;
+    try {
+      const user = await getUserByChat(chatId);
+      if (!user) {
+        await ctx.reply("Вы и так не авторизованы. Отправьте /start для входа.", {
+          reply_markup: { remove_keyboard: true },
+        });
+        return;
+      }
+      await db
+        .update(usersTable)
+        .set({ telegramChatId: null })
+        .where(eq(usersTable.id, user.id));
+      userCtx.delete(chatId);
+      await ctx.reply(
+        `👋 Вы вышли из аккаунта *${user.firstName ?? user.email}*.\n\nДля повторного входа отправьте /start и введите Email.`,
+        { parse_mode: "Markdown", reply_markup: { remove_keyboard: true } }
+      );
+    } catch (err) {
+      logger.error({ err }, "Telegram logout error");
+      await ctx.reply("Ошибка при выходе. Попробуйте снова.");
     }
   });
 
@@ -854,11 +879,18 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
 
     // Auth flow
     if (!user || ctx2?.mode === "auth") {
-      const email = text.toLowerCase();
+      const email = text.trim().toLowerCase();
       try {
-        const found = await db.query.usersTable.findFirst({ where: eq(usersTable.email, email) });
+        const [found] = await db
+          .select()
+          .from(usersTable)
+          .where(sql`LOWER(${usersTable.email}) = ${email}`)
+          .limit(1);
         if (!found) {
-          await ctx.reply("❌ Email не найден.\n\nПроверьте написание и повторите ввод:");
+          await ctx.reply(
+            `❌ Email *${email}* не найден в системе.\n\nПроверьте написание — должен совпадать с адресом в M-Sklad — и повторите ввод:`,
+            { parse_mode: "Markdown" }
+          );
           return;
         }
         await db.update(usersTable).set({ telegramChatId: String(chatId) }).where(eq(usersTable.id, found.id));
