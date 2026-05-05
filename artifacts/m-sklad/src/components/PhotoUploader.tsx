@@ -1,13 +1,13 @@
 import { useRef, useState } from "react";
-import { Camera, X, Loader2, AlertCircle } from "lucide-react";
+import { Camera, X, Loader2, AlertCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 const MAX_FILE_SIZE_MB = 10;
 
 interface Props {
-  value?: string | null;
-  onChange: (objectPath: string | null) => void;
+  value?: string[] | null;
+  onChange: (objectPaths: string[]) => void;
   label?: string;
 }
 
@@ -16,6 +16,8 @@ export function PhotoUploader({ value, onChange, label = "Добавить фо�
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const photos = value ?? [];
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -61,7 +63,7 @@ export function PhotoUploader({ value, onChange, label = "Добавить фо�
         throw new Error(`Ошибка загрузки файла (${uploadRes.status})`);
       }
 
-      onChange(objectPath);
+      onChange([...photos, objectPath]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Ошибка загрузки фото";
       setError(msg);
@@ -72,58 +74,65 @@ export function PhotoUploader({ value, onChange, label = "Добавить фо�
     }
   }
 
-  const photoUrl = value
-    ? `/api/storage/objects/${value.replace(/^\/objects\//, "")}`
-    : null;
+  function removePhoto(index: number) {
+    const next = photos.filter((_, i) => i !== index);
+    onChange(next);
+    setError(null);
+  }
 
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-3">
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileChange}
-          data-testid="photo-file-input"
-          aria-label="Загрузить фото"
-        />
-        {photoUrl ? (
-          <div className="flex items-center gap-2">
-            <a href={photoUrl} target="_blank" rel="noopener noreferrer" title="Открыть фото">
-              <img
-                src={photoUrl}
-                alt="Фото поставки"
-                className="h-16 w-16 rounded-md object-cover border border-border hover:opacity-90 transition-opacity"
-              />
-            </a>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => { onChange(null); setError(null); }}
-              aria-label="Удалить фото"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+    <div className="space-y-2">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+        data-testid="photo-file-input"
+        aria-label="Загрузить фото"
+      />
+      {photos.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {photos.map((path, index) => {
+            const photoUrl = `/api/storage/objects/${path.replace(/^\/objects\//, "")}`;
+            return (
+              <div key={index} className="relative group">
+                <a href={photoUrl} target="_blank" rel="noopener noreferrer" title="Открыть фото">
+                  <img
+                    src={photoUrl}
+                    alt={`Фото ${index + 1}`}
+                    className="h-16 w-16 rounded-md object-cover border border-border hover:opacity-90 transition-opacity"
+                  />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => removePhoto(index)}
+                  className="absolute -top-1.5 -right-1.5 rounded-full bg-destructive text-destructive-foreground h-4 w-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                  aria-label={`Удалить фото ${index + 1}`}
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => { setError(null); inputRef.current?.click(); }}
+        disabled={uploading}
+        data-testid="photo-upload-btn"
+      >
+        {uploading ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : photos.length > 0 ? (
+          <Plus className="mr-2 h-4 w-4" />
         ) : (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => { setError(null); inputRef.current?.click(); }}
-            disabled={uploading}
-            data-testid="photo-upload-btn"
-          >
-            {uploading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Camera className="mr-2 h-4 w-4" />
-            )}
-            {uploading ? "Загрузка..." : label}
-          </Button>
+          <Camera className="mr-2 h-4 w-4" />
         )}
-      </div>
+        {uploading ? "Загрузка..." : photos.length > 0 ? "Добавить ещё фото" : label}
+      </Button>
       {error && (
         <p className="flex items-center gap-1 text-xs text-destructive">
           <AlertCircle className="h-3 w-3 shrink-0" />

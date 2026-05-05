@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, ImageIcon } from "lucide-react";
+import { Plus, ImageIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoUploader } from "@/components/PhotoUploader";
 
@@ -25,16 +25,49 @@ const receiptSchema = z.object({
   pricePerUnit: z.string().min(1, "Цена обязательна"),
   supplier: z.string().optional(),
   notes: z.string().optional(),
-  photoUrl: z.string().nullable().optional(),
+  photoUrls: z.array(z.string()).default([]),
 });
 type ReceiptFormData = z.infer<typeof receiptSchema>;
 
-type Receipt = { id: number; itemId: number; itemName?: string | null; quantity: number | string; pricePerUnit: number | string; totalCost: number | string; supplier?: string | null; photoUrl?: string | null; createdAt: string };
+type Receipt = {
+  id: number;
+  itemId: number;
+  itemName?: string | null;
+  quantity: number | string;
+  pricePerUnit: number | string;
+  totalCost: number | string;
+  supplier?: string | null;
+  photoUrl?: string | null;
+  photoUrls?: string[] | null;
+  createdAt: string;
+};
 type ItemOption = { id: number; name: string; unit: string; pricePerUnit: string };
+
+function getPhotoUrls(r: Receipt): string[] {
+  if (r.photoUrls && r.photoUrls.length > 0) return r.photoUrls;
+  if (r.photoUrl) return [r.photoUrl];
+  return [];
+}
+
+function PhotoCountBadge({ count, onClick }: { count: number; onClick: () => void }) {
+  if (count === 0) return <span className="text-muted-foreground text-xs">—</span>;
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+      aria-label={`Просмотреть ${count} фото`}
+      data-testid="btn-photo-badge"
+    >
+      <ImageIcon className="h-3 w-3" />
+      {count > 1 ? count : null}
+    </button>
+  );
+}
 
 export default function Receipts() {
   const [open, setOpen] = useState(false);
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxPhotos, setLightboxPhotos] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canDo, isLoading: authLoading } = useCurrentUser();
@@ -45,7 +78,7 @@ export default function Receipts() {
 
   const form = useForm<ReceiptFormData>({
     resolver: zodResolver(receiptSchema),
-    defaultValues: { itemId: "", quantity: "", pricePerUnit: "", supplier: "", notes: "", photoUrl: null },
+    defaultValues: { itemId: "", quantity: "", pricePerUnit: "", supplier: "", notes: "", photoUrls: [] },
   });
 
   const selectedItemId = form.watch("itemId");
@@ -59,7 +92,8 @@ export default function Receipts() {
         pricePerUnit: Number(data.pricePerUnit),
         supplier: data.supplier || null,
         notes: data.notes || null,
-        photoUrl: data.photoUrl || null,
+        photoUrl: data.photoUrls[0] ?? null,
+        photoUrls: data.photoUrls,
       }
     }, {
       onSuccess: () => {
@@ -72,6 +106,13 @@ export default function Receipts() {
     });
   }
 
+  function openLightbox(photos: string[], index = 0) {
+    setLightboxPhotos(photos.map((p) => `/api/storage/objects/${p.replace(/^\/objects\//, "")}`));
+    setLightboxIndex(index);
+  }
+
+  const lightboxUrl = lightboxPhotos[lightboxIndex] ?? null;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -83,7 +124,7 @@ export default function Receipts() {
           <div className="h-9 w-36 rounded-md bg-muted animate-pulse" />
         ) : canDo("admin") && (
           <Button
-            onClick={() => { form.reset({ itemId: "", quantity: "", pricePerUnit: "", supplier: "", notes: "", photoUrl: null }); setOpen(true); }}
+            onClick={() => { form.reset({ itemId: "", quantity: "", pricePerUnit: "", supplier: "", notes: "", photoUrls: [] }); setOpen(true); }}
             data-testid="btn-create-receipt"
           >
             <Plus className="mr-2 h-4 w-4" /> Оприходовать
@@ -111,38 +152,34 @@ export default function Receipts() {
               ) : !receipts?.length ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Нет поступлений</TableCell></TableRow>
               ) : (
-                (receipts as unknown as Receipt[]).map((r) => (
-                  <TableRow key={r.id} data-testid={`row-receipt-${r.id}`}>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(r.createdAt).toLocaleDateString("ru-RU")}</TableCell>
-                    <TableCell className="font-medium">{r.itemName ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{r.supplier ?? "—"}</TableCell>
-                    <TableCell className="text-right">{Number(r.quantity).toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{Number(r.pricePerUnit).toFixed(2)} сом</TableCell>
-                    <TableCell className="text-right font-semibold text-emerald-700">{Number(r.totalCost).toFixed(2)} сом</TableCell>
-                    <TableCell className="text-center">
-                      {r.photoUrl ? (
-                        <button
-                          onClick={() => setLightboxUrl(`/api/storage/objects/${r.photoUrl!.replace(/^\/objects\//, "")}`)}
-                          className="inline-flex items-center justify-center rounded p-1 hover:bg-muted transition-colors"
-                          aria-label="Просмотреть фото"
-                          data-testid={`btn-photo-${r.id}`}
-                        >
-                          <ImageIcon className="h-4 w-4 text-primary" />
-                        </button>
-                      ) : <span className="text-muted-foreground text-xs">—</span>}
-                    </TableCell>
-                  </TableRow>
-                ))
+                (receipts as unknown as Receipt[]).map((r) => {
+                  const photos = getPhotoUrls(r);
+                  return (
+                    <TableRow key={r.id} data-testid={`row-receipt-${r.id}`}>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(r.createdAt).toLocaleDateString("ru-RU")}</TableCell>
+                      <TableCell className="font-medium">{r.itemName ?? "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{r.supplier ?? "—"}</TableCell>
+                      <TableCell className="text-right">{Number(r.quantity).toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{Number(r.pricePerUnit).toFixed(2)} сом</TableCell>
+                      <TableCell className="text-right font-semibold text-emerald-700">{Number(r.totalCost).toFixed(2)} сом</TableCell>
+                      <TableCell className="text-center">
+                        <PhotoCountBadge count={photos.length} onClick={() => openLightbox(photos, 0)} />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      <Dialog open={!!lightboxUrl} onOpenChange={(o) => { if (!o) setLightboxUrl(null); }}>
+      <Dialog open={lightboxPhotos.length > 0} onOpenChange={(o) => { if (!o) setLightboxPhotos([]); }}>
         <DialogContent className="max-w-3xl p-2 sm:p-4 flex flex-col items-center gap-3">
-          <DialogHeader className="w-full">
-            <DialogTitle className="text-sm text-muted-foreground">Фото поставки</DialogTitle>
+          <DialogHeader className="w-full flex flex-row items-center justify-between">
+            <DialogTitle className="text-sm text-muted-foreground">
+              Фото поставки {lightboxPhotos.length > 1 ? `(${lightboxIndex + 1} / ${lightboxPhotos.length})` : ""}
+            </DialogTitle>
           </DialogHeader>
           {lightboxUrl && (
             <img
@@ -151,6 +188,29 @@ export default function Receipts() {
               className="max-h-[75vh] w-full object-contain rounded-md"
               data-testid="lightbox-image"
             />
+          )}
+          {lightboxPhotos.length > 1 && (
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setLightboxIndex((i) => Math.max(0, i - 1))}
+                disabled={lightboxIndex === 0}
+                aria-label="Предыдущее фото"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground">{lightboxIndex + 1} / {lightboxPhotos.length}</span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setLightboxIndex((i) => Math.min(lightboxPhotos.length - 1, i + 1))}
+                disabled={lightboxIndex === lightboxPhotos.length - 1}
+                aria-label="Следующее фото"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           )}
         </DialogContent>
       </Dialog>
@@ -191,8 +251,8 @@ export default function Receipts() {
               <div className="space-y-2">
                 <label className="text-sm font-medium leading-none">Фото поставки</label>
                 <PhotoUploader
-                  value={form.watch("photoUrl")}
-                  onChange={(path) => form.setValue("photoUrl", path)}
+                  value={form.watch("photoUrls")}
+                  onChange={(paths) => form.setValue("photoUrls", paths)}
                   label="Сфотографировать накладную"
                 />
               </div>

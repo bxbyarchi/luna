@@ -48,7 +48,7 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 - `dashboard.tsx` — Recharts BarChart (spending over time) + PieChart (category breakdown) + 4 KPI cards + low stock alerts + top write-offs + active rentals widget (conditionally shown)
 - `categories.tsx` — Full CRUD (create/edit/delete) with dialog form
 - `items.tsx` — Full CRUD with search, low-stock badge, modal form with category select
-- `receipts.tsx` — Goods receiving form with item select, auto-populates price
+- `receipts.tsx` — Goods receiving form with item select, auto-populates price; supports multiple photos per receipt
 - `write-offs.tsx` — Write-off form with item/staff/reason selectors (6 predefined reasons)
 - `inventory-audits.tsx` — Create audits, view items with system vs actual counts, save/submit
 - `staff.tsx` — Full CRUD with active status badge
@@ -59,6 +59,8 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 ## Database Schema (`lib/db/src/schema/`)
 
 Tables: `categories`, `items`, `staff`, `receipts`, `writeOffs`, `inventoryAudits`, `auditItems`, `users`, `auditLog`, `rentals`
+
+`receipts` table: `photo_url` (text, legacy single photo) + `photo_urls` (json array, multi-photo support)
 
 All numeric values stored as Drizzle `numeric` type (comes back as strings from DB; use `Number()` for calculations).
 

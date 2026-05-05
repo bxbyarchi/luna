@@ -26,6 +26,7 @@ router.get("/receipts", requireAuth(), async (req: Request, res: Response) => {
       totalCost: receiptsTable.totalCost,
       supplier: receiptsTable.supplier,
       photoUrl: receiptsTable.photoUrl,
+      photoUrls: receiptsTable.photoUrls,
       notes: receiptsTable.notes,
       createdAt: receiptsTable.createdAt,
     })
@@ -38,7 +39,7 @@ router.get("/receipts", requireAuth(), async (req: Request, res: Response) => {
 });
 
 router.post("/receipts", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
-  const { itemId, quantity, pricePerUnit, supplier, photoUrl, notes } = req.body;
+  const { itemId, quantity, pricePerUnit, supplier, photoUrl, photoUrls, notes } = req.body;
   if (!itemId || !quantity || !pricePerUnit) {
     res.status(400).json({ error: "itemId, quantity, pricePerUnit required" });
     return;
@@ -47,13 +48,17 @@ router.post("/receipts", requireAuth(), requireRole("admin"), async (req: Reques
   const price = Number(pricePerUnit);
   const total = qty * price;
 
+  const normalizedPhotoUrls: string[] = Array.isArray(photoUrls) ? photoUrls : (photoUrl ? [photoUrl] : []);
+  const primaryPhotoUrl = normalizedPhotoUrls[0] ?? photoUrl ?? null;
+
   const [row] = await db.insert(receiptsTable).values({
     itemId: Number(itemId),
     quantity: String(qty),
     pricePerUnit: String(price),
     totalCost: String(total),
     supplier,
-    photoUrl: photoUrl || null,
+    photoUrl: primaryPhotoUrl,
+    photoUrls: normalizedPhotoUrls,
     notes,
     recordedByClerkId: req.auth?.userId,
   }).returning();
@@ -88,6 +93,7 @@ router.get("/receipts/:id", requireAuth(), async (req: Request, res: Response) =
       totalCost: receiptsTable.totalCost,
       supplier: receiptsTable.supplier,
       photoUrl: receiptsTable.photoUrl,
+      photoUrls: receiptsTable.photoUrls,
       notes: receiptsTable.notes,
       createdAt: receiptsTable.createdAt,
     })

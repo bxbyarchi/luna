@@ -116,6 +116,7 @@ export interface Receipt {
   supplier?: string | null;
   /** @nullable */
   photoUrl?: string | null;
+  photoUrls?: string[];
   /** @nullable */
   notes?: string | null;
   /** @nullable */
@@ -131,6 +132,7 @@ export interface CreateReceiptBody {
   supplier?: string | null;
   /** @nullable */
   photoUrl?: string | null;
+  photoUrls?: string[];
   /** @nullable */
   notes?: string | null;
 }

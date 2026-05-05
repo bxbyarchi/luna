@@ -199,6 +199,7 @@ export const ListReceiptsResponseItem = zod.object({
   totalCost: zod.number(),
   supplier: zod.string().nullish(),
   photoUrl: zod.string().nullish(),
+  photoUrls: zod.array(zod.string()).optional(),
   notes: zod.string().nullish(),
   recordedByClerkId: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -214,6 +215,7 @@ export const CreateReceiptBody = zod.object({
   pricePerUnit: zod.number(),
   supplier: zod.string().nullish(),
   photoUrl: zod.string().nullish(),
+  photoUrls: zod.array(zod.string()).optional(),
   notes: zod.string().nullish(),
 });
 
@@ -233,6 +235,7 @@ export const GetReceiptResponse = zod.object({
   totalCost: zod.number(),
   supplier: zod.string().nullish(),
   photoUrl: zod.string().nullish(),
+  photoUrls: zod.array(zod.string()).optional(),
   notes: zod.string().nullish(),
   recordedByClerkId: zod.string().nullish(),
   createdAt: zod.coerce.date(),

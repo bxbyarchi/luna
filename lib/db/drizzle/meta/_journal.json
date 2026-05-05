@@ -8,6 +8,13 @@
       "when": 1777896854747,
       "tag": "0000_real_microchip",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777977683083,
+      "tag": "0001_medical_madrox",
+      "breakpoints": true
     }
   ]
 }
