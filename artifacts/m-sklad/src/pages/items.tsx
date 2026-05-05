@@ -249,8 +249,8 @@ export default function Items() {
               <div className="space-y-2">
                 <label className="text-sm font-medium leading-none">Фото позиции</label>
                 <PhotoUploader
-                  value={form.watch("photoUrl")}
-                  onChange={(path) => form.setValue("photoUrl", path)}
+                  value={form.watch("photoUrl") ? [form.watch("photoUrl")!] : null}
+                  onChange={(paths: string[]) => form.setValue("photoUrl", paths[0] ?? null)}
                   label="Загрузить фото"
                 />
               </div>

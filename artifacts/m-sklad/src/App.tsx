@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth, useSession } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, useSession } from "@clerk/react";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
-import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -9,8 +8,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AccessDenied from "@/components/AccessDenied";
 import NotFound from "@/pages/not-found";
-
-import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import Items from "@/pages/items";
 import Categories from "@/pages/categories";
@@ -28,10 +25,7 @@ import { AppLayout } from "@/components/layout";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { AppRole } from "@/hooks/useCurrentUser";
 
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
 
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -43,7 +37,7 @@ function stripBase(path: string): string {
 }
 
 if (!clerkPubKey) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env file");
+  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in environment");
 }
 
 const clerkAppearance = {
@@ -110,23 +104,25 @@ function SignUpPage() {
         routing="path"
         path={`${basePath}/sign-up`}
         signInUrl={`${basePath}/sign-in`}
-        afterSignUpUrl={`${basePath}/onboarding`}
+        fallbackRedirectUrl={`${basePath}/onboarding`}
       />
     </div>
   );
 }
 
 function HomeRedirect() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Redirect to="/dashboard" />
-      </Show>
-      <Show when="signed-out">
-        <Landing />
-      </Show>
-    </>
-  );
+  const { isLoaded, isSignedIn } = useAuth();
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-muted/30">
+        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (isSignedIn) return <Redirect to="/dashboard" />;
+  return <Redirect to="/sign-in" />;
 }
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -289,7 +285,6 @@ function ClerkProviderWithRoutes() {
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
-      clerkJSUrl="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@6/dist/clerk.browser.js"
       appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}

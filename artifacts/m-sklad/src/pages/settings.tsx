@@ -66,7 +66,7 @@ function ProfileSection() {
   async function handleChangePassword() {
     if (!user) return;
     try {
-      await user.createEmailAddressVerification?.({ strategy: "email_link", redirectUrl: window.location.href });
+      await (user as unknown as Record<string, (arg: unknown) => Promise<void>>).createEmailAddressVerification?.({ strategy: "email_link", redirectUrl: window.location.href });
       toast({ title: "Ссылка отправлена на вашу почту" });
     } catch {
       toast({ title: "Используйте страницу сброса пароля", description: "Перейдите на страницу входа и нажмите 'Забыли пароль'" });
@@ -623,6 +623,7 @@ function TelegramSection() {
 }
 
 export default function Settings() {
+  const { canDo } = useCurrentUser();
   return (
     <div className="space-y-6 max-w-3xl">
       <div>

@@ -19,8 +19,9 @@ export const ROLE_LABELS: Record<string, string> = {
 export function useCurrentUser() {
   const { data: user, isLoading, isError } = useGetMe({
     query: {
+      queryKey: ["/api/auth/me"],
       staleTime: 0,
-      refetchOnMount: "always",
+      refetchOnMount: "always" as const,
       refetchOnWindowFocus: true,
     },
   });

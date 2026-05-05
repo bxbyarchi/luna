@@ -93,7 +93,6 @@ export default function Receipts() {
         supplier: data.supplier || null,
         notes: data.notes || null,
         photoUrl: data.photoUrls[0] ?? null,
-        photoUrls: data.photoUrls,
       }
     }, {
       onSuccess: () => {
