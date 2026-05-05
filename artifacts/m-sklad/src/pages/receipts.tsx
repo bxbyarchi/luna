@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, ImageIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoUploader } from "@/components/PhotoUploader";
 
@@ -49,17 +49,27 @@ function getPhotoUrls(r: Receipt): string[] {
   return [];
 }
 
-function PhotoCountBadge({ count, onClick }: { count: number; onClick: () => void }) {
-  if (count === 0) return <span className="text-muted-foreground text-xs">—</span>;
+function PhotoThumbnail({ photos, onClick, receiptId }: { photos: string[]; onClick: () => void; receiptId: number }) {
+  if (photos.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
+  const thumbUrl = `/api/storage/objects/${photos[0].replace(/^\/objects\//, "")}`;
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-      aria-label={`Просмотреть ${count} фото`}
-      data-testid="btn-photo-badge"
+      className="relative inline-block rounded overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      aria-label={`Просмотреть ${photos.length} фото`}
+      data-testid={`btn-photo-${receiptId}`}
     >
-      <ImageIcon className="h-3 w-3" />
-      {count > 1 ? count : null}
+      <img
+        src={thumbUrl}
+        alt="Фото поставки"
+        className="h-10 w-10 object-cover rounded hover:opacity-80 transition-opacity"
+        data-testid={`thumb-photo-${receiptId}`}
+      />
+      {photos.length > 1 && (
+        <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[10px] font-semibold leading-none px-1 py-0.5 rounded-tl">
+          +{photos.length - 1}
+        </span>
+      )}
     </button>
   );
 }
@@ -162,7 +172,7 @@ export default function Receipts() {
                       <TableCell className="text-right">{Number(r.pricePerUnit).toFixed(2)} сом</TableCell>
                       <TableCell className="text-right font-semibold text-emerald-700">{Number(r.totalCost).toFixed(2)} сом</TableCell>
                       <TableCell className="text-center">
-                        <PhotoCountBadge count={photos.length} onClick={() => openLightbox(photos, 0)} />
+                        <PhotoThumbnail photos={photos} onClick={() => openLightbox(photos, 0)} receiptId={r.id} />
                       </TableCell>
                     </TableRow>
                   );
