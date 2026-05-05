@@ -85,6 +85,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 app.use("/api", router);
 
-initTelegramBot();
+const telegramWebhook = initTelegramBot();
+if (telegramWebhook) {
+  app.use("/api", telegramWebhook);
+}
 
 export default app;

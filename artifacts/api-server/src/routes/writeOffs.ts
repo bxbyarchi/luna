@@ -5,7 +5,7 @@ import { writeOffsTable, itemsTable, staffTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
 import { requireRole } from "../middleware/rbac";
-import { sendLowStockAlert } from "../lib/telegramBot";
+import { sendLowStockAlert, sendWriteOffNotification } from "../lib/telegramBot";
 
 const router: IRouter = Router();
 
@@ -74,6 +74,23 @@ router.post("/write-offs", requireAuth(), requireRole("admin"), async (req: Requ
   if (updated?.minThreshold && Number(updated.currentStock) <= Number(updated.minThreshold)) {
     void sendLowStockAlert(updated.name, Number(updated.currentStock), Number(updated.minThreshold), updated.unit);
   }
+
+  // Fetch staff name for the write-off notification
+  let staffName: string | null = null;
+  if (staffId) {
+    const [staffRow] = await db.select({ name: staffTable.name }).from(staffTable).where(eq(staffTable.id, Number(staffId)));
+    staffName = staffRow?.name ?? null;
+  }
+
+  void sendWriteOffNotification({
+    itemName: updated?.name ?? "—",
+    unit: updated?.unit ?? "ед.",
+    quantity: Number(quantity),
+    reason,
+    totalValue,
+    staffName,
+    recordedByName: null,
+  });
 
   await logAudit({ action: "create", entityType: "write_off", entityId: row.id, clerkUserId: req.auth?.userId });
   res.status(201).json(row);
