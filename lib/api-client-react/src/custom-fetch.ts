@@ -345,7 +345,7 @@ export async function customFetch<T = unknown>(
     headers.set("content-type", "application/json");
   }
 
-  if (responseType === "json" && !headers.has("accept")) {
+  if (!headers.has("accept")) {
     headers.set("accept", DEFAULT_JSON_ACCEPT);
   }
 
