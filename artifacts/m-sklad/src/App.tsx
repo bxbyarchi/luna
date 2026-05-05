@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from "@clerk/react";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wouter";
@@ -140,6 +141,38 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   );
 }
 
+/**
+ * Wires Clerk's session token into every customFetch API call via
+ * the Authorization: Bearer header. This bypasses the dev-browser-missing
+ * cookie issue when the Replit proxy separates the frontend and API ports.
+ */
+function ClerkAuthTokenProvider() {
+  const { getToken, isSignedIn } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Set the token getter SYNCHRONOUSLY during render (not in useEffect) so
+  // it is available before react-query fires its first fetch for any child
+  // component. useEffect runs after renders — too late for the first query.
+  if (isSignedIn) {
+    setAuthTokenGetter(() => getToken());
+  } else {
+    setAuthTokenGetter(null);
+  }
+
+  useEffect(() => {
+    if (isSignedIn) {
+      // After sign-in, invalidate any stale 401 responses that were cached
+      // before the token getter was registered (e.g. from a previous session).
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    }
+    return () => {
+      setAuthTokenGetter(null);
+    };
+  }, [isSignedIn, queryClient]);
+
+  return null;
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const queryClient = useQueryClient();
@@ -186,6 +219,7 @@ function ClerkProviderWithRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
+        <ClerkAuthTokenProvider />
         <ClerkQueryClientCacheInvalidator />
         <Switch>
           <Route path="/" component={HomeRedirect} />
