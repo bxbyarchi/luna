@@ -46,7 +46,7 @@ export default function WriteOffs() {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { canDo } = useCurrentUser();
+  const { canDo, isLoading: authLoading } = useCurrentUser();
 
   const { data: writeOffs, isLoading } = useListWriteOffs(undefined, { query: { queryKey: getListWriteOffsQueryKey() } });
   const { data: items } = useListItems(undefined, { query: { queryKey: getListItemsQueryKey() } });
@@ -89,7 +89,9 @@ export default function WriteOffs() {
           <h1 className="text-2xl font-bold tracking-tight">Списания</h1>
           <p className="text-muted-foreground text-sm">Бой, порча и операционные расходы.</p>
         </div>
-        {canDo("warehouse") && (
+        {authLoading ? (
+          <div className="h-9 w-28 rounded-md bg-muted animate-pulse" />
+        ) : canDo("warehouse") && (
           <Button variant="destructive" onClick={() => { form.reset(); setOpen(true); }} data-testid="btn-create-writeoff">
             <Plus className="mr-2 h-4 w-4" /> Списать
           </Button>

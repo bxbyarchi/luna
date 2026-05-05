@@ -9,7 +9,7 @@ export default function Landing() {
         <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="M-Sklad" className="h-8" />
         <div className="space-x-4">
           <Link href="/sign-in">
-            <Button variant="ghost" data-testid="link-signin">Войти</Button>
+            <Button variant="outline" data-testid="link-signin">Войти</Button>
           </Link>
         </div>
       </header>
