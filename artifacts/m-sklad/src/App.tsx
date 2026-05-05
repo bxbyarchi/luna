@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth, useSession } from "@clerk/react";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
@@ -20,6 +20,7 @@ import Staff from "@/pages/staff";
 import AuditLog from "@/pages/audit-log";
 import Settings from "@/pages/settings";
 import Rentals from "@/pages/rentals";
+import Onboarding from "@/pages/onboarding";
 
 import { AppLayout } from "@/components/layout";
 
@@ -101,7 +102,12 @@ function SignInPage() {
 function SignUpPage() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-muted/30 px-4">
-      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+      <SignUp
+        routing="path"
+        path={`${basePath}/sign-up`}
+        signInUrl={`${basePath}/sign-in`}
+        afterSignUpUrl={`${basePath}/onboarding`}
+      />
     </div>
   );
 }
@@ -141,34 +147,47 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   );
 }
 
+function OnboardingPage() {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (!isLoaded) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center">
+        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+  if (!isSignedIn) return <Redirect to="/" />;
+  return <Onboarding />;
+}
+
 /**
- * Wires Clerk's session token into every customFetch API call via
- * the Authorization: Bearer header. This bypasses the dev-browser-missing
+ * Wires Clerk's session token into every customFetch API call via the
+ * Authorization: Bearer header. This bypasses the dev-browser-missing
  * cookie issue when the Replit proxy separates the frontend and API ports.
+ *
+ * Uses useSession() which gives direct access to the active Session object.
+ * session.getToken() is the most reliable way to get a fresh JWT in Clerk v5.
  */
 function ClerkAuthTokenProvider() {
-  const { getToken, isSignedIn } = useAuth();
+  const { session } = useSession();
   const queryClient = useQueryClient();
 
-  // Set the token getter SYNCHRONOUSLY during render (not in useEffect) so
-  // it is available before react-query fires its first fetch for any child
-  // component. useEffect runs after renders — too late for the first query.
-  if (isSignedIn) {
-    setAuthTokenGetter(() => getToken());
+  // Set synchronously during render so the token is attached BEFORE
+  // react-query fires its first fetch in any child component.
+  if (session) {
+    setAuthTokenGetter(() => session.getToken());
   } else {
     setAuthTokenGetter(null);
   }
 
   useEffect(() => {
-    if (isSignedIn) {
-      // After sign-in, invalidate any stale 401 responses that were cached
-      // before the token getter was registered (e.g. from a previous session).
+    if (session) {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     }
     return () => {
       setAuthTokenGetter(null);
     };
-  }, [isSignedIn, queryClient]);
+  }, [session, queryClient]);
 
   return null;
 }
@@ -235,6 +254,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/staff"><ProtectedRoute component={Staff} /></Route>
           <Route path="/audit-log"><ProtectedRoute component={AuditLog} /></Route>
           <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
+          <Route path="/onboarding"><OnboardingPage /></Route>
           <Route component={NotFound} />
         </Switch>
       </QueryClientProvider>

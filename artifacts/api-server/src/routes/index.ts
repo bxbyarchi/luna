@@ -12,11 +12,13 @@ import auditLogRouter from "./auditLog";
 import exportRouter from "./exportRoutes";
 import storageRouter from "./storage";
 import rentalsRouter from "./rentals";
+import onboardingRouter from "./onboarding";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(onboardingRouter);
 router.use(categoriesRouter);
 router.use(itemsRouter);
 router.use(receiptsRouter);

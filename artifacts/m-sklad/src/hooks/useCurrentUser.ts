@@ -9,6 +9,13 @@ const ROLE_LEVEL: Record<string, number> = {
   warehouse: 1,
 };
 
+export const ROLE_LABELS: Record<string, string> = {
+  admin: "Завхоз",
+  manager: "Админ",
+  accountant: "Управляющая",
+  warehouse: "Бухгалтер",
+};
+
 export function useCurrentUser() {
   const { data: user, isLoading } = useGetMe();
 
@@ -17,5 +24,7 @@ export function useCurrentUser() {
     return (ROLE_LEVEL[user.role as string] ?? 0) >= (ROLE_LEVEL[minRole] ?? 99);
   }
 
-  return { user, role: user?.role as AppRole | undefined, canDo, isLoading };
+  const roleLabel = user?.role ? (ROLE_LABELS[user.role] ?? user.role) : "";
+
+  return { user, role: user?.role as AppRole | undefined, canDo, isLoading, roleLabel };
 }

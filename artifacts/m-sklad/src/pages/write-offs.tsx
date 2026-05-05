@@ -91,7 +91,7 @@ export default function WriteOffs() {
         </div>
         {authLoading ? (
           <div className="h-9 w-28 rounded-md bg-muted animate-pulse" />
-        ) : canDo("warehouse") && (
+        ) : canDo("manager") && (
           <Button variant="destructive" onClick={() => { form.reset(); setOpen(true); }} data-testid="btn-create-writeoff">
             <Plus className="mr-2 h-4 w-4" /> Списать
           </Button>

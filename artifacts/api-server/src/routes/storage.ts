@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { requireAuth } from "@clerk/express";
+import { requireAuth } from "../lib/requireAuth";
 import { requireRole } from "../middleware/rbac";
 import { Readable } from "stream";
 import {

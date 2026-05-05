@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { requireAuth } from "@clerk/express";
+import { requireAuth } from "../lib/requireAuth";
 import { db } from "@workspace/db";
 import { receiptsTable, itemsTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
