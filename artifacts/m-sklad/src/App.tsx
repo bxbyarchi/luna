@@ -7,6 +7,7 @@ import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wo
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import AccessDenied from "@/components/AccessDenied";
 import NotFound from "@/pages/not-found";
 
 import Landing from "@/pages/landing";
@@ -170,7 +171,11 @@ function RoleCheck({ component: Component, minRole }: { component: React.Compone
   }
 
   if (!canDo(minRole)) {
-    return <Redirect to="/dashboard" />;
+    return (
+      <AppLayout>
+        <AccessDenied />
+      </AppLayout>
+    );
   }
 
   return (
