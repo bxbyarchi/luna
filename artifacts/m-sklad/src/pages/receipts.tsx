@@ -80,8 +80,11 @@ export default function Receipts() {
         </div>
         {authLoading ? (
           <div className="h-9 w-36 rounded-md bg-muted animate-pulse" />
-        ) : canDo("manager") && (
-          <Button onClick={() => { form.reset(); setOpen(true); }} data-testid="btn-create-receipt">
+        ) : canDo("warehouse") && (
+          <Button
+            onClick={() => { form.reset({ itemId: "", quantity: "", pricePerUnit: "", supplier: "", notes: "", photoUrl: null }); setOpen(true); }}
+            data-testid="btn-create-receipt"
+          >
             <Plus className="mr-2 h-4 w-4" /> Оприходовать
           </Button>
         )}
