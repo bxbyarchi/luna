@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { User, Building2, Shield, MessageCircle, CheckCircle, XCircle, Save, Link } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { User, Building2, Shield, MessageCircle, CheckCircle, XCircle, Save, Link, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Завхоз",
@@ -195,10 +196,136 @@ function OrgSection() {
   );
 }
 
+function AddEmployeeDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onCreated: () => void;
+}) {
+  const { toast } = useToast();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("warehouse");
+  const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function reset() {
+    setFirstName(""); setLastName(""); setEmail(""); setPassword("");
+    setRole("warehouse"); setShowPwd(false); setError(null);
+  }
+
+  async function handleCreate() {
+    if (!email.trim() || !password.trim()) {
+      setError("Email и пароль обязательны");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Пароль должен быть не менее 8 символов");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      await customFetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName, lastName, email, password, role }),
+      });
+      toast({ title: `Сотрудник ${email} добавлен` });
+      reset();
+      onOpenChange(false);
+      onCreated();
+    } catch (err: unknown) {
+      const msg = (err as { data?: { error?: string } })?.data?.error ?? "Не удалось создать пользователя";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Добавить сотрудника</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 pt-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Имя</Label>
+              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Иван" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Фамилия</Label>
+              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Петров" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Email *</Label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="ivan@example.com"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Временный пароль *</Label>
+            <div className="relative">
+              <Input
+                type={showPwd ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Минимум 8 символов"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd((p) => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Роль</Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(ROLE_LABELS).map(([v, l]) => (
+                  <SelectItem key={v} value={v}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {error && (
+            <p className="text-xs text-destructive bg-destructive/10 rounded px-3 py-2">{error}</p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="outline" onClick={() => { onOpenChange(false); reset(); }}>Отмена</Button>
+            <Button onClick={handleCreate} disabled={loading}>
+              {loading ? "Создание..." : "Создать"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AccessSection() {
-  const { canDo } = useCurrentUser();
+  const { canDo, user: me } = useCurrentUser();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [addOpen, setAddOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const { data: users, isLoading } = useQuery<SystemUser[]>({
     queryKey: ["/api/admin/users"],
@@ -217,7 +344,22 @@ function AccessSection() {
       toast({ title: "Роль изменена" });
       qc.invalidateQueries({ queryKey: ["/api/admin/users"] });
     },
-    onError: () => toast({ title: "Ошибка", variant: "destructive" }),
+    onError: () => toast({ title: "Ошибка изменения роли", variant: "destructive" }),
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: (id: number) =>
+      customFetch(`/api/admin/users/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast({ title: "Пользователь удалён" });
+      setDeletingId(null);
+      qc.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { data?: { error?: string } })?.data?.error ?? "Ошибка удаления";
+      toast({ title: msg, variant: "destructive" });
+      setDeletingId(null);
+    },
   });
 
   if (!canDo("admin")) {
@@ -230,47 +372,130 @@ function AccessSection() {
     );
   }
 
-  if (isLoading) return <div className="py-8 text-center text-muted-foreground">Загрузка...</div>;
+  const userList = (users ?? []) as SystemUser[];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Зарегистрированные сотрудники</CardTitle>
-        <CardDescription>Управляйте ролями пользователей системы.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {!users?.length ? (
-            <p className="text-muted-foreground text-sm py-4 text-center">Нет зарегистрированных пользователей.</p>
+    <>
+      <AddEmployeeDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onCreated={() => qc.invalidateQueries({ queryKey: ["/api/admin/users"] })}
+      />
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deletingId !== null} onOpenChange={(v) => { if (!v) setDeletingId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Удалить пользователя?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {(() => {
+              const u = userList.find((u) => u.id === deletingId);
+              const name = [u?.firstName, u?.lastName].filter(Boolean).join(" ") || u?.email;
+              return `Удалить ${name}? Это действие нельзя отменить.`;
+            })()}
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setDeletingId(null)}>Отмена</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteUser.isPending}
+              onClick={() => deletingId && deleteUser.mutate(deletingId)}
+            >
+              Удалить
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle className="text-base">Управление командой</CardTitle>
+            <CardDescription className="mt-1">
+              {userList.length} {userList.length === 1 ? "пользователь" : userList.length >= 2 && userList.length <= 4 ? "пользователя" : "пользователей"} в системе
+            </CardDescription>
+          </div>
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Добавить сотрудника
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="py-8 text-center text-muted-foreground text-sm">Загрузка...</div>
+          ) : !userList.length ? (
+            <div className="py-8 text-center text-muted-foreground text-sm">Нет зарегистрированных пользователей.</div>
           ) : (
-            users.map((u) => {
-              const name = [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email;
-              return (
-                <div key={u.id} className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-muted/20">
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                  </div>
-                  <Select
-                    value={u.role}
-                    onValueChange={(role) => changeRole.mutate({ id: u.id, role })}
-                  >
-                    <SelectTrigger className="w-36 shrink-0">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              );
-            })
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Сотрудник</TableHead>
+                  <TableHead>Роль</TableHead>
+                  <TableHead>Зарегистрирован</TableHead>
+                  <TableHead className="w-10"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {userList.map((u) => {
+                  const displayName = [u.firstName, u.lastName].filter(Boolean).join(" ") || "—";
+                  const isMe = u.clerkUserId === me?.clerkUserId;
+                  return (
+                    <TableRow key={u.id}>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-sm">
+                            {displayName}
+                            {isMe && <span className="ml-2 text-xs text-muted-foreground">(вы)</span>}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{u.email}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={u.role}
+                          onValueChange={(role) => changeRole.mutate({ id: u.id, role })}
+                          disabled={isMe}
+                        >
+                          <SelectTrigger className="w-36 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(ROLE_LABELS).map(([value, label]) => (
+                              <SelectItem key={value} value={value}>{label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(u.createdAt).toLocaleDateString("ru-RU")}
+                      </TableCell>
+                      <TableCell>
+                        {!isMe && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => setDeletingId(u.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <div className="rounded-lg bg-muted/50 border p-4 text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground">Как добавить нового сотрудника:</p>
+        <p>1. Нажмите «Добавить сотрудника» и заполните форму</p>
+        <p>2. Сотрудник сможет войти с указанным email и временным паролем</p>
+        <p>3. При первом входе система предложит выбрать роль (вы можете изменить её здесь)</p>
+        <p className="text-amber-700">⚠️ Сохраните временный пароль — он нигде больше не отображается</p>
+      </div>
+    </>
   );
 }
 
