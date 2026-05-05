@@ -71,6 +71,10 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
     return;
   }
 
+  // Prevent HTTP-level caching so role changes are immediately visible
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
+
   res.json({
     clerkUserId: user.clerkUserId,
     email: user.email,

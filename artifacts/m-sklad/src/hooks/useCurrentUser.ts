@@ -17,7 +17,13 @@ export const ROLE_LABELS: Record<string, string> = {
 };
 
 export function useCurrentUser() {
-  const { data: user, isLoading } = useGetMe();
+  const { data: user, isLoading } = useGetMe({
+    query: {
+      staleTime: 0,
+      refetchOnMount: "always",
+      refetchOnWindowFocus: true,
+    },
+  });
 
   function canDo(minRole: AppRole): boolean {
     if (!user?.role) return false;

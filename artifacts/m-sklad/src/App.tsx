@@ -214,7 +214,15 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 0,
+      refetchOnMount: true,
+      refetchOnWindowFocus: true,
+    },
+  },
+});
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();

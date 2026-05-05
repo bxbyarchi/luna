@@ -1,5 +1,4 @@
 import { type Request, type Response, type NextFunction } from "express";
-import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
@@ -15,7 +14,7 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
 
 export function requireRole(...roles: UserRole[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const { userId: clerkUserId } = getAuth(req);
+    const clerkUserId = (req as Request & { auth?: { userId?: string } }).auth?.userId;
 
     if (!clerkUserId) {
       res.status(401).json({ error: "Unauthorized" });
