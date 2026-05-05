@@ -30,6 +30,8 @@ tags:
     description: Audit log
   - name: storage
     description: File storage
+  - name: rentals
+    description: Equipment rental tracking
 
 paths:
   /healthz:
@@ -693,6 +695,103 @@ paths:
               schema:
                 $ref: "#/components/schemas/RequestUploadUrlResponse"
 
+  /rentals:
+    get:
+      operationId: listRentals
+      tags: [rentals]
+      summary: List all rentals
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, returned]
+      responses:
+        "200":
+          description: Rentals list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rental"
+    post:
+      operationId: createRental
+      tags: [rentals]
+      summary: Create a rental (decreases stock)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRentalBody"
+      responses:
+        "201":
+          description: Created rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rental"
+
+  /rentals/{id}:
+    get:
+      operationId: getRental
+      tags: [rentals]
+      summary: Get rental by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rental"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateRental
+      tags: [rentals]
+      summary: Update rental (e.g. mark returned)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRentalBody"
+      responses:
+        "200":
+          description: Updated rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rental"
+
+  /analytics/active-rentals:
+    get:
+      operationId: getAnalyticsActiveRentals
+      tags: [analytics]
+      summary: Items currently out on rental
+      responses:
+        "200":
+          description: Active rentals summary
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActiveRentalItem"
+
 components:
   schemas:
     HealthStatus:
@@ -1231,3 +1330,128 @@ components:
       required:
         - uploadURL
         - objectPath
+
+    Rental:
+      type: object
+      properties:
+        id:
+          type: integer
+        itemId:
+          type: integer
+        itemName:
+          type: ["string", "null"]
+        itemUnit:
+          type: ["string", "null"]
+        quantity:
+          type: number
+        renterName:
+          type: string
+        renterPhone:
+          type: ["string", "null"]
+        issuedAt:
+          type: string
+          format: date-time
+        plannedReturnAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [active, returned]
+        returnedAt:
+          type: ["string", "null"]
+          format: date-time
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        isOverdue:
+          type: boolean
+      required:
+        - id
+        - itemId
+        - quantity
+        - renterName
+        - issuedAt
+        - plannedReturnAt
+        - status
+        - createdAt
+        - isOverdue
+
+    CreateRentalBody:
+      type: object
+      properties:
+        itemId:
+          type: integer
+        quantity:
+          type: number
+        renterName:
+          type: string
+        renterPhone:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+        plannedReturnAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+      required:
+        - itemId
+        - quantity
+        - renterName
+        - issuedAt
+        - plannedReturnAt
+
+    UpdateRentalBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, returned]
+        renterName:
+          type: string
+        renterPhone:
+          type: string
+        plannedReturnAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+
+    ActiveRentalItem:
+      type: object
+      properties:
+        rentalId:
+          type: integer
+        itemId:
+          type: integer
+        itemName:
+          type: string
+        itemUnit:
+          type: string
+        quantity:
+          type: number
+        renterName:
+          type: string
+        renterPhone:
+          type: ["string", "null"]
+        issuedAt:
+          type: string
+          format: date-time
+        plannedReturnAt:
+          type: string
+          format: date-time
+        isOverdue:
+          type: boolean
+      required:
+        - rentalId
+        - itemId
+        - itemName
+        - itemUnit
+        - quantity
+        - renterName
+        - issuedAt
+        - plannedReturnAt
+        - isOverdue

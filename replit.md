@@ -32,10 +32,11 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 - `writeOffs.ts` — Write-off/breakage recording
 - `inventoryAudits.ts` — Audit creation; PATCH update uses `itemId` (not auditItem.id); submit reconciles `items.currentStock` from actual counts
 - `staff.ts` — Staff directory CRUD (update uses PATCH)
-- `analytics.ts` — 5 endpoints: summary KPIs, category breakdown, spending over time (by period), top write-offs, low stock
+- `analytics.ts` — 6 endpoints: summary KPIs, category breakdown, spending over time (by period), top write-offs, low stock, active-rentals
 - `auditLog.ts` — Paginated audit log — returns `{rows, total, limit, offset}`; restricted to admin/manager roles
 - `exportRoutes.ts` — Excel export via xlsx; restricted to admin/manager/accountant roles
 - `storage.ts` — Object storage for photo uploads
+- `rentals.ts` — Rental tracking: creates rental (decreases stock), mark returned (restores stock), isOverdue computed flag
 
 ### RBAC (`artifacts/api-server/src/middleware/rbac.ts`)
 - `requireRole(...roles)` middleware using `getAuth(req)` from `@clerk/express`
@@ -44,7 +45,7 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 - Applied to: audit-log (admin/manager), exports (admin/manager/accountant)
 
 ### Frontend (`artifacts/m-sklad/src/pages/`)
-- `dashboard.tsx` — Recharts BarChart (spending over time) + PieChart (category breakdown) + 4 KPI cards + low stock alerts + top write-offs
+- `dashboard.tsx` — Recharts BarChart (spending over time) + PieChart (category breakdown) + 4 KPI cards + low stock alerts + top write-offs + active rentals widget (conditionally shown)
 - `categories.tsx` — Full CRUD (create/edit/delete) with dialog form
 - `items.tsx` — Full CRUD with search, low-stock badge, modal form with category select
 - `receipts.tsx` — Goods receiving form with item select, auto-populates price
@@ -52,10 +53,11 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 - `inventory-audits.tsx` — Create audits, view items with system vs actual counts, save/submit
 - `staff.tsx` — Full CRUD with active status badge
 - `audit-log.tsx` — Paginated table (uses `{rows, total}` from API) of all system actions with action/entity type badges
+- `rentals.tsx` — Rental tracking: create dialog (item/qty/renter/dates), status filter tabs, mark returned button, overdue badge, clickable phone links
 
 ## Database Schema (`lib/db/src/schema/`)
 
-Tables: `categories`, `items`, `staff`, `receipts`, `writeOffs`, `inventoryAudits`, `auditItems`, `users`, `auditLog`
+Tables: `categories`, `items`, `staff`, `receipts`, `writeOffs`, `inventoryAudits`, `auditItems`, `users`, `auditLog`, `rentals`
 
 All numeric values stored as Drizzle `numeric` type (comes back as strings from DB; use `Number()` for calculations).
 

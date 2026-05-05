@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { itemsTable, categoriesTable, receiptsTable, writeOffsTable } from "@workspace/db";
+import { itemsTable, categoriesTable, receiptsTable, writeOffsTable, rentalsTable } from "@workspace/db";
 import { eq, sql, gte, and } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -161,6 +161,34 @@ router.get("/analytics/low-stock", requireAuth(), async (req: Request, res: Resp
     currentStock: Number(r.currentStock),
     minThreshold: Number(r.minThreshold),
     unit: r.unit,
+  })));
+});
+
+router.get("/analytics/active-rentals", requireAuth(), async (req: Request, res: Response) => {
+  const now = new Date();
+  const rows = await db
+    .select({
+      rentalId: rentalsTable.id,
+      itemId: rentalsTable.itemId,
+      itemName: itemsTable.name,
+      itemUnit: itemsTable.unit,
+      quantity: rentalsTable.quantity,
+      renterName: rentalsTable.renterName,
+      renterPhone: rentalsTable.renterPhone,
+      issuedAt: rentalsTable.issuedAt,
+      plannedReturnAt: rentalsTable.plannedReturnAt,
+    })
+    .from(rentalsTable)
+    .leftJoin(itemsTable, eq(rentalsTable.itemId, itemsTable.id))
+    .where(eq(rentalsTable.status, "active"))
+    .orderBy(rentalsTable.plannedReturnAt);
+
+  res.json(rows.map((r) => ({
+    ...r,
+    itemName: r.itemName ?? "Unknown",
+    itemUnit: r.itemUnit ?? "",
+    quantity: Number(r.quantity),
+    isOverdue: new Date(r.plannedReturnAt) < now,
   })));
 });
 

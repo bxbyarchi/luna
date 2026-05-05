@@ -18,6 +18,7 @@ import InventoryAudits from "@/pages/inventory-audits";
 import Staff from "@/pages/staff";
 import AuditLog from "@/pages/audit-log";
 import Settings from "@/pages/settings";
+import Rentals from "@/pages/rentals";
 
 import { AppLayout } from "@/components/layout";
 
@@ -189,6 +190,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/receipts"><ProtectedRoute component={Receipts} /></Route>
           <Route path="/write-offs"><ProtectedRoute component={WriteOffs} /></Route>
           <Route path="/inventory-audits"><ProtectedRoute component={InventoryAudits} /></Route>
+          <Route path="/rentals"><ProtectedRoute component={Rentals} /></Route>
           <Route path="/staff"><ProtectedRoute component={Staff} /></Route>
           <Route path="/audit-log"><ProtectedRoute component={AuditLog} /></Route>
           <Route path="/settings"><ProtectedRoute component={Settings} /></Route>

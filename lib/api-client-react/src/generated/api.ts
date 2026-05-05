@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ActiveRentalItem,
   AnalyticsSummary,
   AuditLogListResponse,
   Category,
@@ -25,6 +26,7 @@ import type {
   CreateInventoryAuditBody,
   CreateItemBody,
   CreateReceiptBody,
+  CreateRentalBody,
   CreateStaffMemberBody,
   CreateWriteOffBody,
   CurrentUser,
@@ -37,8 +39,10 @@ import type {
   ListAuditLogParams,
   ListItemsParams,
   ListReceiptsParams,
+  ListRentalsParams,
   ListWriteOffsParams,
   Receipt,
+  Rental,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
   SpendingDataPoint,
@@ -47,6 +51,7 @@ import type {
   UpdateCategoryBody,
   UpdateInventoryAuditBody,
   UpdateItemBody,
+  UpdateRentalBody,
   UpdateStaffMemberBody,
   WriteOff,
 } from "./api.schemas";
@@ -3028,3 +3033,431 @@ export const useRequestUploadUrl = <
 > => {
   return useMutation(getRequestUploadUrlMutationOptions(options));
 };
+
+/**
+ * @summary List all rentals
+ */
+export const getListRentalsUrl = (params?: ListRentalsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/rentals?${stringifiedParams}`
+    : `/api/rentals`;
+};
+
+export const listRentals = async (
+  params?: ListRentalsParams,
+  options?: RequestInit,
+): Promise<Rental[]> => {
+  return customFetch<Rental[]>(getListRentalsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListRentalsQueryKey = (params?: ListRentalsParams) => {
+  return [`/api/rentals`, ...(params ? [params] : [])] as const;
+};
+
+export const getListRentalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRentals>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListRentalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listRentals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRentalsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listRentals>>> = ({
+    signal,
+  }) => listRentals(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRentals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRentalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRentals>>
+>;
+export type ListRentalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all rentals
+ */
+
+export function useListRentals<
+  TData = Awaited<ReturnType<typeof listRentals>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListRentalsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listRentals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRentalsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a rental (decreases stock)
+ */
+export const getCreateRentalUrl = () => {
+  return `/api/rentals`;
+};
+
+export const createRental = async (
+  createRentalBody: CreateRentalBody,
+  options?: RequestInit,
+): Promise<Rental> => {
+  return customFetch<Rental>(getCreateRentalUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createRentalBody),
+  });
+};
+
+export const getCreateRentalMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRental>>,
+    TError,
+    { data: BodyType<CreateRentalBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRental>>,
+  TError,
+  { data: BodyType<CreateRentalBody> },
+  TContext
+> => {
+  const mutationKey = ["createRental"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRental>>,
+    { data: BodyType<CreateRentalBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createRental(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRentalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRental>>
+>;
+export type CreateRentalMutationBody = BodyType<CreateRentalBody>;
+export type CreateRentalMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a rental (decreases stock)
+ */
+export const useCreateRental = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRental>>,
+    TError,
+    { data: BodyType<CreateRentalBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRental>>,
+  TError,
+  { data: BodyType<CreateRentalBody> },
+  TContext
+> => {
+  return useMutation(getCreateRentalMutationOptions(options));
+};
+
+/**
+ * @summary Get rental by id
+ */
+export const getGetRentalUrl = (id: number) => {
+  return `/api/rentals/${id}`;
+};
+
+export const getRental = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Rental> => {
+  return customFetch<Rental>(getGetRentalUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetRentalQueryKey = (id: number) => {
+  return [`/api/rentals/${id}`] as const;
+};
+
+export const getGetRentalQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRental>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRental>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetRentalQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRental>>> = ({
+    signal,
+  }) => getRental(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getRental>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetRentalQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRental>>
+>;
+export type GetRentalQueryError = ErrorType<void>;
+
+/**
+ * @summary Get rental by id
+ */
+
+export function useGetRental<
+  TData = Awaited<ReturnType<typeof getRental>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRental>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRentalQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update rental (e.g. mark returned)
+ */
+export const getUpdateRentalUrl = (id: number) => {
+  return `/api/rentals/${id}`;
+};
+
+export const updateRental = async (
+  id: number,
+  updateRentalBody: UpdateRentalBody,
+  options?: RequestInit,
+): Promise<Rental> => {
+  return customFetch<Rental>(getUpdateRentalUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateRentalBody),
+  });
+};
+
+export const getUpdateRentalMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRental>>,
+    TError,
+    { id: number; data: BodyType<UpdateRentalBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRental>>,
+  TError,
+  { id: number; data: BodyType<UpdateRentalBody> },
+  TContext
+> => {
+  const mutationKey = ["updateRental"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRental>>,
+    { id: number; data: BodyType<UpdateRentalBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateRental(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRentalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRental>>
+>;
+export type UpdateRentalMutationBody = BodyType<UpdateRentalBody>;
+export type UpdateRentalMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update rental (e.g. mark returned)
+ */
+export const useUpdateRental = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRental>>,
+    TError,
+    { id: number; data: BodyType<UpdateRentalBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateRental>>,
+  TError,
+  { id: number; data: BodyType<UpdateRentalBody> },
+  TContext
+> => {
+  return useMutation(getUpdateRentalMutationOptions(options));
+};
+
+/**
+ * @summary Items currently out on rental
+ */
+export const getGetAnalyticsActiveRentalsUrl = () => {
+  return `/api/analytics/active-rentals`;
+};
+
+export const getAnalyticsActiveRentals = async (
+  options?: RequestInit,
+): Promise<ActiveRentalItem[]> => {
+  return customFetch<ActiveRentalItem[]>(getGetAnalyticsActiveRentalsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAnalyticsActiveRentalsQueryKey = () => {
+  return [`/api/analytics/active-rentals`] as const;
+};
+
+export const getGetAnalyticsActiveRentalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAnalyticsActiveRentals>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAnalyticsActiveRentals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAnalyticsActiveRentalsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAnalyticsActiveRentals>>
+  > = ({ signal }) => getAnalyticsActiveRentals({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAnalyticsActiveRentals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAnalyticsActiveRentalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAnalyticsActiveRentals>>
+>;
+export type GetAnalyticsActiveRentalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Items currently out on rental
+ */
+
+export function useGetAnalyticsActiveRentals<
+  TData = Awaited<ReturnType<typeof getAnalyticsActiveRentals>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAnalyticsActiveRentals>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAnalyticsActiveRentalsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

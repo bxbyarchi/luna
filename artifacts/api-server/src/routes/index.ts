@@ -11,6 +11,7 @@ import analyticsRouter from "./analytics";
 import auditLogRouter from "./auditLog";
 import exportRouter from "./exportRoutes";
 import storageRouter from "./storage";
+import rentalsRouter from "./rentals";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(analyticsRouter);
 router.use(auditLogRouter);
 router.use(exportRouter);
 router.use(storageRouter);
+router.use(rentalsRouter);
 
 export default router;

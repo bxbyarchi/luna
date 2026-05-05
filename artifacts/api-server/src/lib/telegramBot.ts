@@ -1,7 +1,7 @@
 import { Telegraf, type Context } from "telegraf";
 import { db } from "@workspace/db";
-import { itemsTable, writeOffsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { itemsTable, writeOffsTable, rentalsTable } from "@workspace/db";
+import { eq, sql, and, lt } from "drizzle-orm";
 import { logger } from "./logger";
 import { logAudit } from "./auditLogger";
 
@@ -220,11 +220,75 @@ export function initTelegramBot(): void {
 
   bot
     .launch()
-    .then(() => logger.info("Telegram bot started"))
+    .then(() => {
+      logger.info("Telegram bot started");
+      void checkOverdueRentals();
+      setInterval(() => { void checkOverdueRentals(); }, 60 * 60 * 1000);
+    })
     .catch((err) => logger.error({ err }, "Failed to start Telegram bot"));
 
   process.once("SIGINT", () => bot?.stop("SIGINT"));
   process.once("SIGTERM", () => bot?.stop("SIGTERM"));
+}
+
+export async function sendOverdueRentalAlert(
+  itemName: string,
+  renterName: string,
+  renterPhone: string | null,
+  plannedReturnAt: Date,
+  quantity: number,
+  itemUnit: string
+): Promise<void> {
+  const adminChatId = process.env["TELEGRAM_ADMIN_CHAT_ID"];
+  if (!bot || !adminChatId) return;
+
+  const dateStr = plannedReturnAt.toLocaleDateString("ru-RU");
+  const phone = renterPhone ? `\nТелефон: ${renterPhone}` : "";
+  try {
+    await bot.telegram.sendMessage(
+      adminChatId,
+      `🔴 *Просрочена аренда*\n\n*Товар:* ${itemName} × ${quantity} ${itemUnit}\n*Арендатор:* ${renterName}${phone}\n*Планируемый возврат:* ${dateStr}`,
+      { parse_mode: "Markdown" }
+    );
+  } catch (err) {
+    logger.error({ err }, "Failed to send overdue rental Telegram alert");
+  }
+}
+
+async function checkOverdueRentals(): Promise<void> {
+  const adminChatId = process.env["TELEGRAM_ADMIN_CHAT_ID"];
+  if (!bot || !adminChatId) return;
+
+  try {
+    const now = new Date();
+    const overdueRentals = await db
+      .select({
+        id: rentalsTable.id,
+        itemId: rentalsTable.itemId,
+        renterName: rentalsTable.renterName,
+        renterPhone: rentalsTable.renterPhone,
+        plannedReturnAt: rentalsTable.plannedReturnAt,
+        quantity: rentalsTable.quantity,
+        itemName: itemsTable.name,
+        itemUnit: itemsTable.unit,
+      })
+      .from(rentalsTable)
+      .leftJoin(itemsTable, eq(rentalsTable.itemId, itemsTable.id))
+      .where(and(eq(rentalsTable.status, "active"), lt(rentalsTable.plannedReturnAt, now)));
+
+    for (const r of overdueRentals) {
+      await sendOverdueRentalAlert(
+        r.itemName ?? "Unknown",
+        r.renterName,
+        r.renterPhone ?? null,
+        r.plannedReturnAt,
+        Number(r.quantity),
+        r.itemUnit ?? ""
+      );
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to check overdue rentals");
+  }
 }
 
 export async function sendLowStockAlert(

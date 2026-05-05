@@ -304,6 +304,75 @@ export interface RequestUploadUrlResponse {
   objectPath: string;
 }
 
+export type RentalStatus = (typeof RentalStatus)[keyof typeof RentalStatus];
+
+export const RentalStatus = {
+  active: "active",
+  returned: "returned",
+} as const;
+
+export interface Rental {
+  id: number;
+  itemId: number;
+  /** @nullable */
+  itemName?: string | null;
+  /** @nullable */
+  itemUnit?: string | null;
+  quantity: number;
+  renterName: string;
+  /** @nullable */
+  renterPhone?: string | null;
+  issuedAt: string;
+  plannedReturnAt: string;
+  status: RentalStatus;
+  /** @nullable */
+  returnedAt?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  isOverdue: boolean;
+}
+
+export interface CreateRentalBody {
+  itemId: number;
+  quantity: number;
+  renterName: string;
+  renterPhone?: string;
+  issuedAt: string;
+  plannedReturnAt: string;
+  notes?: string;
+}
+
+export type UpdateRentalBodyStatus =
+  (typeof UpdateRentalBodyStatus)[keyof typeof UpdateRentalBodyStatus];
+
+export const UpdateRentalBodyStatus = {
+  active: "active",
+  returned: "returned",
+} as const;
+
+export interface UpdateRentalBody {
+  status?: UpdateRentalBodyStatus;
+  renterName?: string;
+  renterPhone?: string;
+  plannedReturnAt?: string;
+  notes?: string;
+}
+
+export interface ActiveRentalItem {
+  rentalId: number;
+  itemId: number;
+  itemName: string;
+  itemUnit: string;
+  quantity: number;
+  renterName: string;
+  /** @nullable */
+  renterPhone?: string | null;
+  issuedAt: string;
+  plannedReturnAt: string;
+  isOverdue: boolean;
+}
+
 export type ListItemsParams = {
   categoryId?: number;
   belowThreshold?: boolean;
@@ -350,3 +419,15 @@ export type ExportWriteOffsParams = {
   from?: string;
   to?: string;
 };
+
+export type ListRentalsParams = {
+  status?: ListRentalsStatus;
+};
+
+export type ListRentalsStatus =
+  (typeof ListRentalsStatus)[keyof typeof ListRentalsStatus];
+
+export const ListRentalsStatus = {
+  active: "active",
+  returned: "returned",
+} as const;

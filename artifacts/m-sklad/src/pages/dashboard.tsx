@@ -5,18 +5,21 @@ import {
   useGetAnalyticsSpendingOverTime,
   useGetAnalyticsTopWriteOffs,
   useGetAnalyticsLowStock,
+  useGetAnalyticsActiveRentals,
   getGetAnalyticsSummaryQueryKey,
   getGetAnalyticsCategoryBreakdownQueryKey,
   getGetAnalyticsSpendingOverTimeQueryKey,
   getGetAnalyticsTopWriteOffsQueryKey,
   getGetAnalyticsLowStockQueryKey,
+  getGetAnalyticsActiveRentalsQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, TrendingUp, TrendingDown, Package, AlertTriangle, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Download, TrendingUp, TrendingDown, Package, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, KeyRound } from "lucide-react";
+import { Link } from "wouter";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -61,6 +64,9 @@ export default function Dashboard() {
   );
   const { data: lowStock, isLoading: loadingLowStock } = useGetAnalyticsLowStock({
     query: { queryKey: getGetAnalyticsLowStockQueryKey() },
+  });
+  const { data: activeRentals, isLoading: loadingRentals } = useGetAnalyticsActiveRentals({
+    query: { queryKey: getGetAnalyticsActiveRentalsQueryKey() },
   });
 
   const handleExportStock = () => { window.open("/api/export/stock", "_blank"); };
@@ -161,6 +167,55 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {(loadingRentals || (activeRentals && activeRentals.length > 0)) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base font-semibold">Активные аренды</CardTitle>
+                {activeRentals && activeRentals.length > 0 && (
+                  <Badge variant="outline" className="text-xs">{activeRentals.length}</Badge>
+                )}
+                {activeRentals && activeRentals.some((r) => r.isOverdue) && (
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {activeRentals.filter((r) => r.isOverdue).length} просрочено
+                  </Badge>
+                )}
+              </div>
+              <Link href="/rentals">
+                <span className="text-xs text-primary hover:underline cursor-pointer">Все аренды →</span>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingRentals ? (
+              <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            ) : (
+              <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                {(activeRentals ?? []).map((r) => (
+                  <div key={r.rentalId} className={`flex items-center justify-between p-2.5 rounded-lg border ${r.isOverdue ? "border-destructive/30 bg-destructive/5" : "border-border bg-muted/30"}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <KeyRound className={`h-4 w-4 shrink-0 ${r.isOverdue ? "text-destructive" : "text-muted-foreground"}`} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{r.itemName}</p>
+                        <p className="text-xs text-muted-foreground">{r.renterName}{r.renterPhone ? ` · ${r.renterPhone}` : ""}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-2">
+                      <p className="text-sm font-semibold">{r.quantity} {r.itemUnit}</p>
+                      <p className={`text-xs ${r.isOverdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                        до {new Date(r.plannedReturnAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

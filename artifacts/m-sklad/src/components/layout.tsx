@@ -12,6 +12,7 @@ import {
   History,
   Settings,
   LogOut,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -34,6 +35,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { name: "Поступления", href: "/receipts", icon: ArrowDownToLine, testId: "receipts" },
     { name: "Списания", href: "/write-offs", icon: ArrowUpFromLine, testId: "write-offs" },
     { name: "Инвентаризация", href: "/inventory-audits", icon: ClipboardCheck, testId: "inventory-audits" },
+    { name: "Аренда", href: "/rentals", icon: KeyRound, testId: "rentals" },
     { name: "Сотрудники", href: "/staff", icon: Users, testId: "staff" },
     { name: "Журнал аудита", href: "/audit-log", icon: History, roles: ["admin"], testId: "audit-log" },
     { name: "Настройки", href: "/settings", icon: Settings, testId: "settings" },

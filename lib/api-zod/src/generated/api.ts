@@ -608,3 +608,116 @@ export const RequestUploadUrlResponse = zod.object({
   uploadURL: zod.string(),
   objectPath: zod.string(),
 });
+
+/**
+ * @summary List all rentals
+ */
+export const ListRentalsQueryParams = zod.object({
+  status: zod.enum(["active", "returned"]).optional(),
+});
+
+export const ListRentalsResponseItem = zod.object({
+  id: zod.number(),
+  itemId: zod.number(),
+  itemName: zod.string().nullish(),
+  itemUnit: zod.string().nullish(),
+  quantity: zod.number(),
+  renterName: zod.string(),
+  renterPhone: zod.string().nullish(),
+  issuedAt: zod.coerce.date(),
+  plannedReturnAt: zod.coerce.date(),
+  status: zod.enum(["active", "returned"]),
+  returnedAt: zod.coerce.date().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  isOverdue: zod.boolean(),
+});
+export const ListRentalsResponse = zod.array(ListRentalsResponseItem);
+
+/**
+ * @summary Create a rental (decreases stock)
+ */
+export const CreateRentalBody = zod.object({
+  itemId: zod.number(),
+  quantity: zod.number(),
+  renterName: zod.string(),
+  renterPhone: zod.string().optional(),
+  issuedAt: zod.coerce.date(),
+  plannedReturnAt: zod.coerce.date(),
+  notes: zod.string().optional(),
+});
+
+/**
+ * @summary Get rental by id
+ */
+export const GetRentalParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetRentalResponse = zod.object({
+  id: zod.number(),
+  itemId: zod.number(),
+  itemName: zod.string().nullish(),
+  itemUnit: zod.string().nullish(),
+  quantity: zod.number(),
+  renterName: zod.string(),
+  renterPhone: zod.string().nullish(),
+  issuedAt: zod.coerce.date(),
+  plannedReturnAt: zod.coerce.date(),
+  status: zod.enum(["active", "returned"]),
+  returnedAt: zod.coerce.date().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  isOverdue: zod.boolean(),
+});
+
+/**
+ * @summary Update rental (e.g. mark returned)
+ */
+export const UpdateRentalParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateRentalBody = zod.object({
+  status: zod.enum(["active", "returned"]).optional(),
+  renterName: zod.string().optional(),
+  renterPhone: zod.string().optional(),
+  plannedReturnAt: zod.coerce.date().optional(),
+  notes: zod.string().optional(),
+});
+
+export const UpdateRentalResponse = zod.object({
+  id: zod.number(),
+  itemId: zod.number(),
+  itemName: zod.string().nullish(),
+  itemUnit: zod.string().nullish(),
+  quantity: zod.number(),
+  renterName: zod.string(),
+  renterPhone: zod.string().nullish(),
+  issuedAt: zod.coerce.date(),
+  plannedReturnAt: zod.coerce.date(),
+  status: zod.enum(["active", "returned"]),
+  returnedAt: zod.coerce.date().nullish(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  isOverdue: zod.boolean(),
+});
+
+/**
+ * @summary Items currently out on rental
+ */
+export const GetAnalyticsActiveRentalsResponseItem = zod.object({
+  rentalId: zod.number(),
+  itemId: zod.number(),
+  itemName: zod.string(),
+  itemUnit: zod.string(),
+  quantity: zod.number(),
+  renterName: zod.string(),
+  renterPhone: zod.string().nullish(),
+  issuedAt: zod.coerce.date(),
+  plannedReturnAt: zod.coerce.date(),
+  isOverdue: zod.boolean(),
+});
+export const GetAnalyticsActiveRentalsResponse = zod.array(
+  GetAnalyticsActiveRentalsResponseItem,
+);
