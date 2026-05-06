@@ -63,24 +63,48 @@ function PhotoThumbnail({ photos, onClick, receiptId }: { photos: string[]; onCl
   if (photos.length === 0) return <span className="text-muted-foreground text-xs">—</span>;
   const thumbUrl = `/api/storage/objects/${photos[0].replace(/^\/objects\//, "")}`;
   return (
-    <button
-      onClick={onClick}
-      className="relative inline-block rounded overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      aria-label={`Просмотреть ${photos.length} фото`}
-      data-testid={`btn-photo-${receiptId}`}
-    >
-      <img
-        src={thumbUrl}
-        alt="Фото поставки"
-        className="h-10 w-10 object-cover rounded hover:opacity-80 transition-opacity"
-        data-testid={`thumb-photo-${receiptId}`}
-      />
-      {photos.length > 1 && (
-        <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[10px] font-semibold leading-none px-1 py-0.5 rounded-tl">
-          +{photos.length - 1}
-        </span>
-      )}
-    </button>
+    <div className="relative inline-block group">
+      <button
+        onClick={onClick}
+        className="relative inline-block rounded overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        aria-label={`Просмотреть ${photos.length} фото`}
+        data-testid={`btn-photo-${receiptId}`}
+      >
+        <img
+          src={thumbUrl}
+          alt="Фото поставки"
+          className="h-10 w-10 object-cover rounded group-hover:opacity-80 transition-opacity"
+          data-testid={`thumb-photo-${receiptId}`}
+        />
+        {photos.length > 1 && (
+          <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[10px] font-semibold leading-none px-1 py-0.5 rounded-tl">
+            +{photos.length - 1}
+          </span>
+        )}
+      </button>
+      {/* Hover popover preview */}
+      <div
+        className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150"
+        data-testid={`popover-photo-${receiptId}`}
+      >
+        <div className="rounded-lg shadow-xl border border-border bg-background p-1">
+          <img
+            src={thumbUrl}
+            alt="Предпросмотр фото"
+            className="h-48 w-48 object-cover rounded"
+          />
+          {photos.length > 1 && (
+            <p className="text-center text-xs text-muted-foreground mt-1 pb-0.5">
+              {photos.length} фото · нажмите для просмотра
+            </p>
+          )}
+        </div>
+        {/* Arrow */}
+        <div className="flex justify-center">
+          <div className="w-2 h-2 bg-background border-b border-r border-border rotate-45 -mt-1" />
+        </div>
+      </div>
+    </div>
   );
 }
 
