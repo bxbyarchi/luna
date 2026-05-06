@@ -25,8 +25,11 @@ const REASONS = [
   "Хищение",
   "Естественная убыль",
   "Списание по акту",
+  "Хозяйственные нужды",
   "Иное",
 ];
+
+const HOZKA_REASON = "Хозяйственные нужды";
 
 const writeOffSchema = z.object({
   itemId: z.string().min(1, "Позиция обязательна"),
@@ -60,6 +63,8 @@ export default function WriteOffs() {
 
   const selectedItemId = form.watch("itemId");
   const selectedItem = (items as ItemOption[] | undefined)?.find((i) => String(i.id) === selectedItemId);
+  const selectedReason = form.watch("reason");
+  const isHozka = selectedReason === HOZKA_REASON;
 
   function onSubmit(data: WriteOffFormData) {
     create.mutate({
@@ -169,12 +174,27 @@ export default function WriteOffs() {
                   <FormMessage /></FormItem>
                 )} />
               </div>
+              {isHozka && (
+                <div className="rounded-md border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-800">
+                  🧹 Укажите сотрудника, который получил хозтовары — это обязательно для учёта.
+                </div>
+              )}
               <FormField control={form.control} name="staffId" render={({ field }) => (
-                <FormItem><FormLabel>Ответственный сотрудник</FormLabel>
+                <FormItem>
+                  <FormLabel className={isHozka ? "text-orange-700 font-semibold" : ""}>
+                    Ответственный сотрудник{isHozka ? " *" : ""}
+                  </FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl><SelectTrigger data-testid="select-wo-staff"><SelectValue placeholder="Не указан" /></SelectTrigger></FormControl>
+                    <FormControl>
+                      <SelectTrigger
+                        data-testid="select-wo-staff"
+                        className={isHozka ? "border-orange-400 ring-1 ring-orange-300" : ""}
+                      >
+                        <SelectValue placeholder={isHozka ? "Выбрать получателя" : "Не указан"} />
+                      </SelectTrigger>
+                    </FormControl>
                     <SelectContent>
-                      <SelectItem value="none">Не указан</SelectItem>
+                      {!isHozka && <SelectItem value="none">Не указан</SelectItem>}
                       {(staff as StaffOption[] | undefined)?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>

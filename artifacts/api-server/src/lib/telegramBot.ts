@@ -38,6 +38,7 @@ const REASONS = [
   "Хищение",
   "Естественная убыль",
   "Списание по акту",
+  "Хозяйственные нужды",
   "Иное",
 ];
 
@@ -1141,6 +1142,30 @@ export async function sendLowStockAlert(
     }
   } catch (err) {
     logger.error({ err }, "sendLowStockAlert error");
+  }
+}
+
+export async function sendHozkaLowStockAlert(
+  itemName: string,
+  currentStock: number,
+  unit: string
+): Promise<void> {
+  if (!bot) return;
+  try {
+    const admins = await db
+      .select({ telegramChatId: usersTable.telegramChatId })
+      .from(usersTable)
+      .where(eq(usersTable.role, "admin"));
+
+    const qty = `${Number(currentStock).toFixed(Number.isInteger(currentStock) ? 0 : 2)} ${unit}`;
+    const text = `⚠️ *Хозтовары на исходе!*\n\n*${itemName}* осталось всего *${qty}*.\n\nНужно дополнить склад при следующем закупе.`;
+
+    for (const admin of admins) {
+      if (!admin.telegramChatId) continue;
+      await bot.telegram.sendMessage(Number(admin.telegramChatId), text, { parse_mode: "Markdown" });
+    }
+  } catch (err) {
+    logger.error({ err }, "sendHozkaLowStockAlert error");
   }
 }
 

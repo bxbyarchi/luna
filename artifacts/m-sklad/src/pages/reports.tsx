@@ -387,7 +387,7 @@ export default function Reports() {
                 </thead>
                 <tbody>
                   {data.writeOffs.map((r, i) => (
-                    <tr key={i} className="border-b border-border last:border-0 hover:bg-muted/20">
+                    <tr key={i} className={`border-b border-border last:border-0 hover:bg-muted/20${r.reason === "Хозяйственные нужды" ? " bg-orange-50/50" : ""}`}>
                       <td className="py-2 px-3 text-muted-foreground">{r.date}</td>
                       <td className="py-2 px-3 font-medium">{r.itemName}</td>
                       <td className="py-2 px-3 text-right">{r.quantity} {r.unit}</td>
@@ -399,6 +399,22 @@ export default function Reports() {
                   {data.writeOffs.length === 0 && <EmptyRow cols={6} text="Нет списаний за период" />}
                 </tbody>
               </table>
+              {(() => {
+                const hozkaTotal = data.writeOffs
+                  .filter((r) => r.reason === "Хозяйственные нужды")
+                  .reduce((sum, r) => sum + r.totalValue, 0);
+                if (hozkaTotal <= 0) return null;
+                return (
+                  <div className="mt-3 flex items-center justify-between rounded-md border border-orange-200 bg-orange-50 px-4 py-2.5">
+                    <div className="flex items-center gap-2 text-sm font-medium text-orange-800">
+                      🧹 Хозяйственные нужды за период
+                    </div>
+                    <div className="text-sm font-bold text-orange-900">
+                      −{fmt(hozkaTotal)}
+                    </div>
+                  </div>
+                );
+              })()}
             </ReportSection>
 
             <ReportSection

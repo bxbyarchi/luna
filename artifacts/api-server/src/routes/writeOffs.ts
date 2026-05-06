@@ -1,11 +1,11 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "../lib/requireAuth";
 import { db } from "@workspace/db";
-import { writeOffsTable, itemsTable, staffTable } from "@workspace/db";
+import { writeOffsTable, itemsTable, staffTable, categoriesTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
 import { requireRole } from "../middleware/rbac";
-import { sendLowStockAlert, sendWriteOffNotification } from "../lib/telegramBot";
+import { sendLowStockAlert, sendHozkaLowStockAlert, sendWriteOffNotification } from "../lib/telegramBot";
 
 const router: IRouter = Router();
 
@@ -67,12 +67,27 @@ router.post("/write-offs", requireAuth(), requireRole("admin"), async (req: Requ
     .where(eq(itemsTable.id, Number(itemId)));
 
   const [updated] = await db
-    .select({ currentStock: itemsTable.currentStock, minThreshold: itemsTable.minThreshold, name: itemsTable.name, unit: itemsTable.unit })
+    .select({
+      currentStock: itemsTable.currentStock,
+      minThreshold: itemsTable.minThreshold,
+      name: itemsTable.name,
+      unit: itemsTable.unit,
+      categoryName: categoriesTable.name,
+      categorySlug: categoriesTable.slug,
+    })
     .from(itemsTable)
+    .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
     .where(eq(itemsTable.id, Number(itemId)));
 
   if (updated?.minThreshold && Number(updated.currentStock) <= Number(updated.minThreshold)) {
-    void sendLowStockAlert(updated.name, Number(updated.currentStock), Number(updated.minThreshold), updated.unit);
+    const isHozka = updated.categoryName?.toLowerCase().includes("хозка") ||
+                    updated.categorySlug?.toLowerCase().includes("hozka") ||
+                    updated.categorySlug?.toLowerCase().includes("hoz");
+    if (isHozka) {
+      void sendHozkaLowStockAlert(updated.name, Number(updated.currentStock), updated.unit);
+    } else {
+      void sendLowStockAlert(updated.name, Number(updated.currentStock), Number(updated.minThreshold), updated.unit);
+    }
   }
 
   // Fetch staff name for the write-off notification
