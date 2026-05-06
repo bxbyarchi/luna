@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Redirect } from "wouter";
 import {
   useListCategories, useCreateCategory, useUpdateCategory, useDeleteCategory,
   getListCategoriesQueryKey,
@@ -17,6 +16,7 @@ import { z } from "zod";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import AccessDenied from "@/components/AccessDenied";
 
 const CYRILLIC_MAP: Record<string, string> = {
   а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "yo", ж: "zh",
@@ -70,7 +70,7 @@ export default function Categories() {
   }, [nameValue, editing, form]);
 
   if (!authLoading && !canDo("manager")) {
-    return <Redirect to="/dashboard" />;
+    return <AccessDenied />;
   }
 
   function openCreate() {
