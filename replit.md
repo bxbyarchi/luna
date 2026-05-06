@@ -77,3 +77,6 @@ All numeric values stored as Drizzle `numeric` type (comes back as strings from 
 - Analytics `spending-over-time`: `DATE_TRUNC` result may be string or Date; handle both cases
 - Frontend preview path: `/` (root)
 - API base URL: `http://localhost:8080` (configured in `artifacts/m-sklad/src/lib/api.ts` or vite proxy)
+- **Mobile UI**: Responsive layout — hamburger sidebar on mobile (fixed overlay + backdrop), desktop sidebar always visible; items page has dual table/card views (`.desktop-table` / `.mobile-cards` CSS classes); all other table pages have `overflow-x-auto` CardContent; touch targets ≥40px; iOS zoom-proof `font-size:16px` on inputs
+- **PWA**: `public/manifest.json` + index.html meta tags (theme-color, apple-mobile-web-app, manifest link, `lang="ru"`)
+- **Deployment**: Live at `https://m-sklad.replit.app` (autoscale). Clerk dev keys (`pk_test_*`) — to remove "Development mode" banner, switch to `pk_live_*` via clerk.com dashboard → set `VITE_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` secrets

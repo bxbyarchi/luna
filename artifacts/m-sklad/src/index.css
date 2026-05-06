@@ -195,3 +195,58 @@
 }
 
 .cl-formFieldInput::placeholder { color: hsl(var(--muted-foreground)); opacity: 1; }
+
+/* ============================================================
+   Mobile responsive utilities
+   ============================================================ */
+
+/* Horizontal-scrolling table wrapper for pages that use raw tables */
+.table-scroll-mobile {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Larger minimum touch target for interactive elements on mobile */
+@media (max-width: 767px) {
+  button, [role="button"] {
+    min-height: 40px;
+  }
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: 16px; /* prevents iOS auto-zoom */
+    min-height: 44px;
+  }
+
+  /* Camera / file input — bigger tap area */
+  input[type="file"] + button,
+  [data-testid="photo-upload-btn"] {
+    min-height: 48px;
+    width: 100%;
+  }
+
+  /* Dialog full-screen on mobile */
+  [role="dialog"] > div {
+    max-height: 95dvh;
+    overflow-y: auto;
+  }
+}
+
+/* Mobile item cards — shown only on small screens */
+.mobile-cards { display: none; }
+.desktop-table { display: block; }
+
+@media (max-width: 767px) {
+  .mobile-cards { display: block; }
+  .desktop-table { display: none; }
+}
+
+/* Stack form grids to single column on mobile */
+@media (max-width: 639px) {
+  .grid-cols-2 { grid-template-columns: 1fr !important; }
+  .col-span-2 { grid-column: span 1 !important; }
+}
+

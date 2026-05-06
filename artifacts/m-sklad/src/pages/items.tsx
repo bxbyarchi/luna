@@ -152,7 +152,9 @@ export default function Items() {
             />
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+
+        {/* ── Desktop table ── */}
+        <CardContent className="p-0 desktop-table">
           <Table>
             <TableHeader>
               <TableRow>
@@ -180,12 +182,8 @@ export default function Items() {
                   <TableRow key={item.id} data-testid={`row-item-${item.id}`} className={item.isBelowThreshold ? "bg-destructive/3" : ""}>
                     <TableCell className="py-2">
                       {thumbUrl ? (
-                        <button
-                          type="button"
-                          onClick={() => setPreviewPhotoUrl(thumbUrl)}
-                          className="rounded overflow-hidden border border-border hover:opacity-80 transition-opacity"
-                          title="Открыть фото"
-                        >
+                        <button type="button" onClick={() => setPreviewPhotoUrl(thumbUrl)}
+                          className="rounded overflow-hidden border border-border hover:opacity-80 transition-opacity" title="Открыть фото">
                           <img src={thumbUrl} alt={item.name} className="h-10 w-10 object-cover block" />
                         </button>
                       ) : (
@@ -223,6 +221,77 @@ export default function Items() {
               )}
             </TableBody>
           </Table>
+        </CardContent>
+
+        {/* ── Mobile cards ── */}
+        <CardContent className="p-3 mobile-cards">
+          {isLoading ? (
+            <p className="text-center py-8 text-muted-foreground text-sm">Загрузка...</p>
+          ) : !items?.length ? (
+            <p className="text-center py-8 text-muted-foreground text-sm">Позиции не найдены</p>
+          ) : (
+            <div className="space-y-2">
+              {(items as unknown as ItemRow[]).map((item) => {
+                const thumbUrl = item.photoUrl
+                  ? `${BASE}/api/storage/objects/${item.photoUrl.replace(/^\/objects\//, "")}`
+                  : null;
+                return (
+                  <div
+                    key={item.id}
+                    data-testid={`row-item-${item.id}`}
+                    className={`flex items-start gap-3 rounded-lg border p-3 ${item.isBelowThreshold ? "border-destructive/40 bg-destructive/5" : "border-border bg-card"}`}
+                  >
+                    {/* Photo */}
+                    <div className="shrink-0">
+                      {thumbUrl ? (
+                        <button type="button" onClick={() => setPreviewPhotoUrl(thumbUrl)}
+                          className="rounded-md overflow-hidden border border-border active:opacity-70">
+                          <img src={thumbUrl} alt={item.name} className="h-16 w-16 object-cover block" />
+                        </button>
+                      ) : (
+                        <div className="h-16 w-16 rounded-md border border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground/40">
+                          <ImageOff className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {item.isBelowThreshold && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+                            <span className="font-semibold text-sm leading-tight">{item.name}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{item.categoryName ?? "—"}{item.location ? ` · ${item.location}` : ""}</p>
+                        </div>
+                        {item.isBelowThreshold ? (
+                          <Badge variant="destructive" className="text-xs shrink-0">Мало</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-emerald-700 bg-emerald-50 border-emerald-200 shrink-0">Норма</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <div>
+                          <span className="text-sm font-medium">{Number(item.currentStock).toFixed(2)} {item.unit}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{Number(item.pricePerUnit).toFixed(2)} сом/{item.unit}</span>
+                        </div>
+                        {canDo("admin") && (
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)} data-testid={`btn-edit-item-${item.id}`}>
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(item.id)} data-testid={`btn-delete-item-${item.id}`}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
