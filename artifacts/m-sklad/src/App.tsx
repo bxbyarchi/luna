@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, useSession } from "@clerk/react";
+import { ruRU } from "@clerk/localizations";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, Redirect, useLocation, Router as WouterRouter } from "wouter";
@@ -289,10 +290,22 @@ function ClerkProviderWithRoutes() {
       signInUrl={`${basePath}/sign-in`}
       signUpUrl={`${basePath}/sign-up`}
       localization={{
+        ...ruRU,
+        formFieldInputPlaceholder__signUpPassword: "Придумайте пароль",
         signIn: {
+          ...ruRU.signIn,
           start: {
+            ...ruRU.signIn?.start,
             title: "Войти в M-Sklad",
             subtitle: "Введите данные для доступа к системе управления складом",
+          },
+        },
+        signUp: {
+          ...ruRU.signUp,
+          start: {
+            ...ruRU.signUp?.start,
+            title: "Создать аккаунт",
+            subtitle: "Заполните данные для регистрации в M-Sklad",
           },
         },
       }}
