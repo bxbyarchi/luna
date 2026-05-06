@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Redirect } from "wouter";
 import {
   useListCategories, useCreateCategory, useUpdateCategory, useDeleteCategory,
   getListCategoriesQueryKey,
@@ -50,7 +51,7 @@ export default function Categories() {
   const [editing, setEditing] = useState<Category | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { canDo } = useCurrentUser();
+  const { canDo, isLoading: authLoading } = useCurrentUser();
   const create = useCreateCategory();
   const update = useUpdateCategory();
   const remove = useDeleteCategory();
@@ -67,6 +68,10 @@ export default function Categories() {
       form.setValue("slug", toSlug(nameValue), { shouldValidate: true });
     }
   }, [nameValue, editing, form]);
+
+  if (!authLoading && !canDo("manager")) {
+    return <Redirect to="/dashboard" />;
+  }
 
   function openCreate() {
     setEditing(null);
