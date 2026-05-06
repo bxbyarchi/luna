@@ -16,13 +16,7 @@ import {
   FileBarChart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Завхоз",
-  manager: "Управляющий",
-  accountant: "Бухгалтер",
-  warehouse: "Кладовщик",
-};
+import { ROLE_LABELS } from "@/lib/roles";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();

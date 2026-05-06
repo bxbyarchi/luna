@@ -1,4 +1,7 @@
 import { useGetMe } from "@workspace/api-client-react";
+import { ROLE_LABELS } from "@/lib/roles";
+
+export { ROLE_LABELS };
 
 export type AppRole = "admin" | "manager" | "accountant" | "warehouse";
 
@@ -7,13 +10,6 @@ const ROLE_LEVEL: Record<string, number> = {
   manager: 3,
   accountant: 2,
   warehouse: 1,
-};
-
-export const ROLE_LABELS: Record<string, string> = {
-  admin: "Завхоз",
-  manager: "Управляющий",
-  accountant: "Бухгалтер",
-  warehouse: "Кладовщик",
 };
 
 export function useCurrentUser() {

@@ -14,13 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { User, Building2, Shield, MessageCircle, CheckCircle, XCircle, Save, Link, Plus, Trash2, Eye, EyeOff } from "lucide-react";
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Завхоз",
-  manager: "Управляющий",
-  accountant: "Бухгалтер",
-  warehouse: "Кладовщик",
-};
+import { ROLE_LABELS } from "@/lib/roles";
 
 const CURRENCIES = [
   { value: "KGS", label: "Сом (KGS)" },
