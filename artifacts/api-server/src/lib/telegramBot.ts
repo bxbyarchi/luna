@@ -28,6 +28,7 @@ const BTN = {
   SEARCH:     "🔍 Поиск товара",
   CRITICAL:   "⚠️ Критический остаток",
   BREAKAGE:   "📸 Новое списание",
+  RESTOCK:    "➕ Оприходование",
   // Universal
   BACK:       "⬅️ Назад в меню",
 } as const;
@@ -53,7 +54,8 @@ type CtxMode =
   | "search"
   | "breakage_qty"
   | "breakage_reason"
-  | "restock_qty";
+  | "restock_qty"
+  | "restock_notes";
 
 interface UserCtx {
   mode: CtxMode;
@@ -61,6 +63,7 @@ interface UserCtx {
   itemName?: string;
   itemUnit?: string;
   qty?: number;
+  notes?: string;
 }
 
 const userCtx = new Map<number, UserCtx>();
@@ -110,7 +113,7 @@ function warehouseKeyboard(role: string) {
     [{ text: BTN.ALL_STOCK }, { text: BTN.SEARCH }],
     [{ text: BTN.CRITICAL }],
   ];
-  if (isAdmin) rows.push([{ text: BTN.BREAKAGE }]);
+  if (isAdmin) rows.push([{ text: BTN.RESTOCK }, { text: BTN.BREAKAGE }]);
   rows.push([{ text: BTN.BACK }]);
   return { keyboard: rows, resize_keyboard: true };
 }
@@ -158,14 +161,15 @@ async function sendAnalyticsMenu(ctx: Context) {
       .from(categoriesTable)
       .orderBy(categoriesTable.name);
 
-    const catRows = cats.map((c) => [{ text: c.name, callback_data: `rep_fmt_${c.id}` }]);
+    // Each button triggers Excel generation immediately (no intermediate format picker)
+    const catRows = cats.map((c) => [{ text: `📁 ${c.name}`, callback_data: `rep_xlsx_${c.id}` }]);
     await ctx.reply(
-      "📊 *Аналитика и Отчёты*\n_(за текущий месяц)_\n\nВыберите категорию:",
+      "📊 *Аналитика и Отчёты*\n_(за текущий месяц)_\n\nВыберите категорию — Excel-файл придёт сразу:",
       {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
-            [{ text: "📋 Общий отчёт (все категории)", callback_data: "rep_fmt_all" }],
+            [{ text: "📋 Общий отчёт (все категории)", callback_data: "rep_xlsx_all" }],
             ...catRows,
           ],
         },
@@ -561,12 +565,89 @@ async function startBreakageFlow(ctx: Context & { chat: { id: number } }) {
 // ============================================================================
 // Restock (receipt creation) helpers
 // ============================================================================
+async function startRestockFlow(ctx: Context & { chat: { id: number } }) {
+  try {
+    const items = await db
+      .select({ id: itemsTable.id, name: itemsTable.name, unit: itemsTable.unit, currentStock: itemsTable.currentStock })
+      .from(itemsTable)
+      .orderBy(itemsTable.name)
+      .limit(30);
+
+    if (!items.length) { await ctx.reply("В базе нет позиций."); return; }
+
+    const keyboard = items.map((it) => [
+      { text: `${it.name} — ${Number(it.currentStock).toFixed(1)} ${it.unit}`, callback_data: `rs_item_${it.id}` },
+    ]);
+    keyboard.push([{ text: "❌ Отмена", callback_data: "cancel" }]);
+
+    await ctx.reply("📋 *Выберите позицию для оприходования:*", {
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: keyboard },
+    });
+  } catch (err) {
+    logger.error({ err }, "startRestockFlow error");
+    await ctx.reply("Ошибка загрузки товаров.");
+  }
+}
+
+async function doRestock(
+  ctx: Context & { chat: { id: number } },
+  chatId: number,
+  itemId: number,
+  qty: number,
+  notes: string,
+  role: string,
+) {
+  try {
+    const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, itemId) });
+    if (!item) { await ctx.reply("Товар не найден."); return; }
+
+    const totalCost = Number(item.pricePerUnit) * qty;
+    const comment = notes.trim() === "—" || notes.trim() === "" ? null : notes.trim();
+
+    await db.insert(receiptsTable).values({
+      itemId: item.id,
+      quantity: String(qty),
+      pricePerUnit: item.pricePerUnit,
+      totalCost: String(totalCost),
+      supplier: comment ?? "Оприходование через Telegram",
+      notes: comment,
+    });
+
+    await db
+      .update(itemsTable)
+      .set({ currentStock: sql`CAST(${itemsTable.currentStock} AS DECIMAL) + ${qty}` })
+      .where(eq(itemsTable.id, item.id));
+
+    await logAudit({ action: "create", entityType: "receipt", details: `Telegram restock: ${item.name} × ${qty}${comment ? ` (${comment})` : ""}` });
+
+    const [updated] = await db
+      .select({ currentStock: itemsTable.currentStock })
+      .from(itemsTable)
+      .where(eq(itemsTable.id, item.id));
+
+    userCtx.set(chatId, { mode: "warehouse" });
+    await ctx.reply(
+      `✅ *Оприходование зафиксировано!*\n\n` +
+      `📦 *${item.name}*\n` +
+      `📥 Принято: *${qty} ${item.unit}*\n` +
+      `📊 Новый остаток: *${Number(updated?.currentStock ?? 0).toFixed(2)} ${item.unit}*\n` +
+      `💰 Сумма: ${fmt(totalCost)} сом` +
+      (comment ? `\n📝 Комментарий: ${comment}` : ""),
+      { parse_mode: "Markdown", reply_markup: warehouseKeyboard(role) }
+    );
+  } catch (err) {
+    logger.error({ err }, "Telegram restock error");
+    await ctx.reply("Ошибка при сохранении. Попробуйте снова.");
+  }
+}
+
 async function startRestockForItem(ctx: Context & { chat: { id: number } }, itemId: number) {
   const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, itemId) });
   if (!item) { await ctx.reply("Товар не найден."); return; }
   userCtx.set(ctx.chat.id, { mode: "restock_qty", itemId: item.id, itemName: item.name, itemUnit: item.unit });
   await ctx.reply(
-    `📥 *Пополнение: ${item.name}*\n\nТекущий остаток: *${Number(item.currentStock).toFixed(2)} ${item.unit}*\nЦена: ${fmt(Number(item.pricePerUnit))} сом/${item.unit}\n\nВведите количество для пополнения:`,
+    `📥 *Оприходование: ${item.name}*\n\nТекущий остаток: *${Number(item.currentStock).toFixed(2)} ${item.unit}*\nЦена: ${fmt(Number(item.pricePerUnit))} сом/${item.unit}\n\nВведите количество:`,
     { parse_mode: "Markdown" }
   );
 }
@@ -723,6 +804,17 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
     await startBreakageForItem(ctx as Parameters<typeof startBreakageForItem>[0], Number(ctx.match[1]));
   });
 
+  // ---- Restock: item selected from the standalone restock list ----
+  bot.action(/^rs_item_(\d+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const role = await getUserRole(ctx.chat!.id);
+    if (role !== "admin") {
+      await ctx.reply("⛔ Только Завхоз может оприходовать товар.");
+      return;
+    }
+    await startRestockForItem(ctx as Parameters<typeof startRestockForItem>[0], Number(ctx.match[1]));
+  });
+
   // ---- Restock: started from item detail inline button ----
   bot.action(/^rs_start_(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -808,6 +900,19 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
       logger.error({ err }, "Telegram write-off error");
       await ctx.reply("Ошибка при сохранении. Попробуйте снова.");
     }
+  });
+
+  // ---- Restock: skip notes inline button ----
+  bot.action("restock_skip_notes", async (ctx) => {
+    await ctx.answerCbQuery("Сохраняю без комментария…");
+    const chatId = ctx.chat!.id;
+    const ctx2 = userCtx.get(chatId);
+    if (!ctx2 || ctx2.mode !== "restock_notes" || !ctx2.itemId || !ctx2.qty) {
+      await ctx.reply("Сессия устарела. Начните заново.");
+      return;
+    }
+    const role = await getUserRole(chatId) ?? "admin";
+    await doRestock(ctx as Parameters<typeof startRestockForItem>[0], chatId, ctx2.itemId, ctx2.qty, "", role);
   });
 
   // ---- Cancel ----
@@ -954,6 +1059,12 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
       return;
     }
 
+    if (text === BTN.RESTOCK) {
+      if (!isAdmin) { await ctx.reply("⛔ Только Завхоз может оприходовать товар."); return; }
+      await startRestockFlow(ctx as Parameters<typeof startRestockFlow>[0]);
+      return;
+    }
+
     if (text === BTN.BREAKAGE) {
       if (!canWrite) { await ctx.reply("⛔ Нет прав для списания."); return; }
       await startBreakageFlow(ctx as Parameters<typeof startBreakageFlow>[0]);
@@ -1000,39 +1111,22 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
       const qty = Number(text.replace(",", "."));
       if (isNaN(qty) || qty <= 0) { await ctx.reply("Введите положительное число."); return; }
       if (!ctx2?.itemId) { await ctx.reply("Ошибка сессии. Начните заново."); return; }
+      userCtx.set(chatId, { ...ctx2, mode: "restock_notes", qty });
+      await ctx.reply(
+        `📥 Количество: *${qty} ${ctx2.itemUnit ?? "ед."}*\n\nВведите комментарий к поставке:\n_(например: «Закуп с Дордоя», «Базарный закуп» или «—» если без комментария)_`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [[{ text: "⏩ Без комментария", callback_data: "restock_skip_notes" }]],
+          },
+        }
+      );
+      return;
+    }
 
-      try {
-        const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, ctx2.itemId) });
-        if (!item) { await ctx.reply("Товар не найден."); return; }
-
-        const totalCost = Number(item.pricePerUnit) * qty;
-        await db.insert(receiptsTable).values({
-          itemId: item.id,
-          quantity: String(qty),
-          pricePerUnit: item.pricePerUnit,
-          totalCost: String(totalCost),
-          supplier: "Через Telegram-бот",
-          notes: `Пополнение через Telegram`,
-        });
-
-        await db
-          .update(itemsTable)
-          .set({ currentStock: sql`CAST(${itemsTable.currentStock} AS DECIMAL) + ${qty}` })
-          .where(eq(itemsTable.id, item.id));
-
-        await logAudit({ action: "create", entityType: "receipt", details: `Telegram restock: ${item.name} × ${qty}` });
-
-        const [updated] = await db.select({ currentStock: itemsTable.currentStock }).from(itemsTable).where(eq(itemsTable.id, item.id));
-
-        userCtx.set(chatId, { mode: "warehouse" });
-        await ctx.reply(
-          `✅ *Пополнение зафиксировано!*\n\n📦 ${item.name}\n📥 Добавлено: *${qty} ${item.unit}*\n📊 Новый остаток: *${Number(updated?.currentStock ?? 0).toFixed(2)} ${item.unit}*\n💰 Сумма: ${fmt(totalCost)} сом`,
-          { parse_mode: "Markdown", reply_markup: warehouseKeyboard(role) }
-        );
-      } catch (err) {
-        logger.error({ err }, "Telegram restock error");
-        await ctx.reply("Ошибка при пополнении. Попробуйте снова.");
-      }
+    if (mode === "restock_notes") {
+      if (!ctx2?.itemId || !ctx2.qty) { await ctx.reply("Ошибка сессии. Начните заново."); return; }
+      await doRestock(ctx as Parameters<typeof startRestockForItem>[0], chatId, ctx2.itemId, ctx2.qty, text, role);
       return;
     }
 
