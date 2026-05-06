@@ -242,6 +242,44 @@ export const GetReceiptResponse = zod.object({
 });
 
 /**
+ * @summary Update a receipt (manager/admin only)
+ */
+export const UpdateReceiptParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateReceiptBody = zod.object({
+  quantity: zod.number().optional(),
+  pricePerUnit: zod.number().optional(),
+  supplier: zod.string().nullish(),
+  photoUrl: zod.string().nullish(),
+  photoUrls: zod.array(zod.string()).optional(),
+  notes: zod.string().nullish(),
+});
+
+export const UpdateReceiptResponse = zod.object({
+  id: zod.number(),
+  itemId: zod.number(),
+  itemName: zod.string().nullish(),
+  quantity: zod.number(),
+  pricePerUnit: zod.number(),
+  totalCost: zod.number(),
+  supplier: zod.string().nullish(),
+  photoUrl: zod.string().nullish(),
+  photoUrls: zod.array(zod.string()).optional(),
+  notes: zod.string().nullish(),
+  recordedByClerkId: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a receipt and reverse stock adjustment (manager/admin only)
+ */
+export const DeleteReceiptParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List write-offs and breakage records
  */
 export const ListWriteOffsQueryParams = zod.object({

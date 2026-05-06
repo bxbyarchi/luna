@@ -51,6 +51,7 @@ import type {
   UpdateCategoryBody,
   UpdateInventoryAuditBody,
   UpdateItemBody,
+  UpdateReceiptBody,
   UpdateRentalBody,
   UpdateStaffMemberBody,
   WriteOff,
@@ -1229,6 +1230,177 @@ export function useGetReceipt<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Update a receipt (manager/admin only)
+ */
+export const getUpdateReceiptUrl = (id: number) => {
+  return `/api/receipts/${id}`;
+};
+
+export const updateReceipt = async (
+  id: number,
+  updateReceiptBody: UpdateReceiptBody,
+  options?: RequestInit,
+): Promise<Receipt> => {
+  return customFetch<Receipt>(getUpdateReceiptUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateReceiptBody),
+  });
+};
+
+export const getUpdateReceiptMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateReceipt>>,
+    TError,
+    { id: number; data: BodyType<UpdateReceiptBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateReceipt>>,
+  TError,
+  { id: number; data: BodyType<UpdateReceiptBody> },
+  TContext
+> => {
+  const mutationKey = ["updateReceipt"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateReceipt>>,
+    { id: number; data: BodyType<UpdateReceiptBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateReceipt(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateReceiptMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateReceipt>>
+>;
+export type UpdateReceiptMutationBody = BodyType<UpdateReceiptBody>;
+export type UpdateReceiptMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a receipt (manager/admin only)
+ */
+export const useUpdateReceipt = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateReceipt>>,
+    TError,
+    { id: number; data: BodyType<UpdateReceiptBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateReceipt>>,
+  TError,
+  { id: number; data: BodyType<UpdateReceiptBody> },
+  TContext
+> => {
+  return useMutation(getUpdateReceiptMutationOptions(options));
+};
+
+/**
+ * @summary Delete a receipt and reverse stock adjustment (manager/admin only)
+ */
+export const getDeleteReceiptUrl = (id: number) => {
+  return `/api/receipts/${id}`;
+};
+
+export const deleteReceipt = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteReceiptUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteReceiptMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteReceipt>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteReceipt>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteReceipt"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteReceipt>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteReceipt(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteReceiptMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteReceipt>>
+>;
+
+export type DeleteReceiptMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a receipt and reverse stock adjustment (manager/admin only)
+ */
+export const useDeleteReceipt = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteReceipt>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteReceipt>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteReceiptMutationOptions(options));
+};
 
 /**
  * @summary List write-offs and breakage records

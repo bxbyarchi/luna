@@ -62,7 +62,7 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     // Attach auth object compatible with req.auth?.userId pattern used in routes
     (req as Request & { auth: Record<string, unknown> }).auth = {
       userId: payload.sub,
-      sessionId: (payload as Record<string, unknown>).sid,
+      sessionId: (payload as Record<string, unknown>).sid as string | undefined,
       sessionClaims: payload,
     };
     return next();

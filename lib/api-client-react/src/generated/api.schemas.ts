@@ -137,6 +137,18 @@ export interface CreateReceiptBody {
   notes?: string | null;
 }
 
+export interface UpdateReceiptBody {
+  quantity?: number;
+  pricePerUnit?: number;
+  /** @nullable */
+  supplier?: string | null;
+  /** @nullable */
+  photoUrl?: string | null;
+  photoUrls?: string[];
+  /** @nullable */
+  notes?: string | null;
+}
+
 export interface WriteOff {
   id: number;
   itemId: number;

@@ -297,6 +297,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Receipt"
+    patch:
+      operationId: updateReceipt
+      tags: [receipts]
+      summary: Update a receipt (manager/admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReceiptBody"
+      responses:
+        "200":
+          description: Updated receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Receipt"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteReceipt
+      tags: [receipts]
+      summary: Delete a receipt and reverse stock adjustment (manager/admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
 
   /write-offs:
     get:
@@ -1014,6 +1052,24 @@ components:
         - itemId
         - quantity
         - pricePerUnit
+
+    UpdateReceiptBody:
+      type: object
+      properties:
+        quantity:
+          type: number
+        pricePerUnit:
+          type: number
+        supplier:
+          type: ["string", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        photoUrls:
+          type: array
+          items:
+            type: string
+        notes:
+          type: ["string", "null"]
 
     WriteOff:
       type: object

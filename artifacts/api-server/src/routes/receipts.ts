@@ -105,4 +105,90 @@ router.get("/receipts/:id", requireAuth(), async (req: Request, res: Response) =
   res.json(row);
 });
 
+router.patch("/receipts/:id", requireAuth(), requireRole("manager"), async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+
+  const [existing] = await db
+    .select()
+    .from(receiptsTable)
+    .where(eq(receiptsTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const { quantity, pricePerUnit, supplier, photoUrl, photoUrls, notes } = req.body;
+
+  const oldQty = Number(existing.quantity);
+  const newQty = quantity !== undefined ? Number(quantity) : oldQty;
+  const newPrice = pricePerUnit !== undefined ? Number(pricePerUnit) : Number(existing.pricePerUnit);
+  const newTotal = newQty * newPrice;
+
+  const normalizedPhotoUrls: string[] | undefined =
+    photoUrls !== undefined
+      ? (Array.isArray(photoUrls) ? photoUrls : (photoUrl ? [photoUrl] : []))
+      : undefined;
+  const primaryPhotoUrl =
+    normalizedPhotoUrls !== undefined
+      ? (normalizedPhotoUrls[0] ?? null)
+      : (photoUrl !== undefined ? photoUrl : existing.photoUrl);
+
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(receiptsTable)
+      .set({
+        ...(quantity !== undefined && { quantity: String(newQty) }),
+        ...(pricePerUnit !== undefined && { pricePerUnit: String(newPrice) }),
+        totalCost: String(newTotal),
+        ...(supplier !== undefined && { supplier }),
+        ...(photoUrl !== undefined || photoUrls !== undefined ? { photoUrl: primaryPhotoUrl } : {}),
+        ...(normalizedPhotoUrls !== undefined && { photoUrls: normalizedPhotoUrls }),
+        ...(notes !== undefined && { notes }),
+      })
+      .where(eq(receiptsTable.id, id))
+      .returning();
+
+    if (quantity !== undefined) {
+      const qtyDelta = newQty - oldQty;
+      await tx
+        .update(itemsTable)
+        .set({ currentStock: sql`CAST(${itemsTable.currentStock} AS DECIMAL) + ${qtyDelta}` })
+        .where(eq(itemsTable.id, existing.itemId));
+    }
+
+    return row;
+  });
+
+  await logAudit({ action: "update", entityType: "receipt", entityId: id, clerkUserId: req.auth?.userId });
+  res.json(updated);
+});
+
+router.delete("/receipts/:id", requireAuth(), requireRole("manager"), async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+
+  const [existing] = await db
+    .select()
+    .from(receiptsTable)
+    .where(eq(receiptsTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const qty = Number(existing.quantity);
+
+  await db.transaction(async (tx) => {
+    await tx.delete(receiptsTable).where(eq(receiptsTable.id, id));
+    await tx
+      .update(itemsTable)
+      .set({ currentStock: sql`CAST(${itemsTable.currentStock} AS DECIMAL) - ${qty}` })
+      .where(eq(itemsTable.id, existing.itemId));
+  });
+
+  await logAudit({ action: "delete", entityType: "receipt", entityId: id, clerkUserId: req.auth?.userId });
+  res.status(204).send();
+});
+
 export default router;
