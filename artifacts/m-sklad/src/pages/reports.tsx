@@ -1,6 +1,8 @@
 import { useState, useRef } from "react";
 import { useAuth } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import AccessDenied from "@/components/AccessDenied";
 import { useListCategories } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,6 +71,7 @@ function getPresetDates(preset: Period): { from: string; to: string } {
 
 export default function Reports() {
   const { getToken } = useAuth();
+  const { canDo, isLoading: roleLoading } = useCurrentUser();
   const [preset, setPreset] = useState<Period>("month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -77,6 +80,10 @@ export default function Reports() {
   const printRef = useRef<HTMLDivElement>(null);
 
   const { data: categories } = useListCategories();
+
+  if (!roleLoading && !canDo("admin")) {
+    return <AccessDenied />;
+  }
 
   const { from, to } = preset === "custom"
     ? { from: customFrom, to: customTo }
