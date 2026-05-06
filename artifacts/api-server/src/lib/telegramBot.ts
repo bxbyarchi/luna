@@ -13,6 +13,7 @@ import { eq, sql, and, lt, lte, gte, ilike } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { logger } from "./logger";
 import { logAudit } from "./auditLogger";
+import { ObjectStorageService } from "./objectStorage";
 
 // ============================================================================
 // Button text constants — used for ReplyKeyboard matching
@@ -55,7 +56,8 @@ type CtxMode =
   | "breakage_qty"
   | "breakage_reason"
   | "restock_qty"
-  | "restock_notes";
+  | "restock_notes"
+  | "photo_pending";
 
 interface UserCtx {
   mode: CtxMode;
@@ -64,6 +66,7 @@ interface UserCtx {
   itemUnit?: string;
   qty?: number;
   notes?: string;
+  pendingPhotoPath?: string;
 }
 
 const userCtx = new Map<number, UserCtx>();
@@ -293,6 +296,21 @@ async function showItemDetail(ctx: Context, itemId: number, role: string) {
       ]);
     }
 
+    // Send photo first if item has one
+    if (item.photoUrl) {
+      try {
+        const storage = new ObjectStorageService();
+        const gcsFile = await storage.getObjectEntityFile(item.photoUrl);
+        const [buffer] = await gcsFile.download();
+        await ctx.replyWithPhoto(
+          { source: buffer },
+          { caption: `📷 ${item.name}`, parse_mode: "Markdown" }
+        );
+      } catch (photoErr) {
+        logger.warn({ photoErr }, "showItemDetail: failed to send photo, skipping");
+      }
+    }
+
     await ctx.reply(text, {
       parse_mode: "Markdown",
       reply_markup: inlineButtons.length ? { inline_keyboard: inlineButtons } : undefined,
@@ -301,6 +319,18 @@ async function showItemDetail(ctx: Context, itemId: number, role: string) {
     logger.error({ err }, "showItemDetail error");
     await ctx.reply("Ошибка при получении данных.");
   }
+}
+
+// ============================================================================
+// Telegram photo → Object Storage upload helper
+// ============================================================================
+async function uploadTelegramPhoto(ctx: Context, fileId: string): Promise<string> {
+  const fileLink = await ctx.telegram.getFileLink(fileId);
+  const response = await fetch(fileLink.href);
+  if (!response.ok) throw new Error(`Failed to download Telegram photo: ${response.status}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const storage = new ObjectStorageService();
+  return storage.uploadBuffer(buffer, "image/jpeg");
 }
 
 // ============================================================================
@@ -971,6 +1001,116 @@ export function initTelegramBot(): import("express").RequestHandler | undefined 
       logger.error({ err }, "show_rentals error");
       await ctx.reply("Ошибка при получении данных.");
     }
+  });
+
+  // ============================== PHOTO HANDLER ==============================
+  bot.on("photo", async (ctx) => {
+    const chatId = ctx.chat.id;
+    const user = await getUserByChat(chatId);
+    if (!user) {
+      await ctx.reply("Сначала авторизуйтесь. Отправьте /start.");
+      return;
+    }
+    const role = user.role;
+    const isAdmin = role === "admin";
+
+    try {
+      await ctx.reply("⏳ Загружаю фото...");
+      const photos = ctx.message.photo;
+      const largest = photos[photos.length - 1];
+      const photoPath = await uploadTelegramPhoto(ctx, largest.file_id);
+
+      userCtx.set(chatId, { mode: "photo_pending", pendingPhotoPath: photoPath });
+
+      const actions: Array<{ text: string; callback_data: string }[]> = [
+        [{ text: "📎 Прикрепить к существующему товару", callback_data: "photo_attach" }],
+        [{ text: "❌ Отмена", callback_data: "photo_cancel" }],
+      ];
+
+      await ctx.reply(
+        "✅ *Фото загружено!*\n\nЧто сделать с этим фото?",
+        {
+          parse_mode: "Markdown",
+          reply_markup: { inline_keyboard: actions },
+        }
+      );
+    } catch (err) {
+      logger.error({ err }, "photo handler error");
+      await ctx.reply("❌ Не удалось загрузить фото. Попробуйте ещё раз.");
+    }
+  });
+
+  // ---- Photo: show item list to attach photo ----
+  bot.action("photo_attach", async (ctx) => {
+    await ctx.answerCbQuery();
+    const chatId = ctx.chat.id;
+    const ctx2 = userCtx.get(chatId);
+    if (!ctx2?.pendingPhotoPath) {
+      await ctx.reply("Сессия истекла. Отправьте фото заново.");
+      return;
+    }
+
+    try {
+      const items = await db
+        .select({ id: itemsTable.id, name: itemsTable.name, unit: itemsTable.unit })
+        .from(itemsTable)
+        .orderBy(itemsTable.name)
+        .limit(30);
+
+      if (!items.length) {
+        await ctx.reply("В базе нет товаров. Сначала добавьте товар в M-Sklad.");
+        return;
+      }
+
+      const rows = items.map((it) => [{ text: it.name, callback_data: `photo_item_${it.id}` }]);
+      await ctx.reply(
+        "📋 *Выберите товар* для прикрепления фото:",
+        {
+          parse_mode: "Markdown",
+          reply_markup: { inline_keyboard: [...rows, [{ text: "❌ Отмена", callback_data: "photo_cancel" }]] },
+        }
+      );
+    } catch (err) {
+      logger.error({ err }, "photo_attach error");
+      await ctx.reply("Ошибка загрузки товаров.");
+    }
+  });
+
+  // ---- Photo: attach to specific item ----
+  bot.action(/^photo_item_(\d+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const chatId = ctx.chat.id;
+    const ctx2 = userCtx.get(chatId);
+    if (!ctx2?.pendingPhotoPath) {
+      await ctx.reply("Сессия истекла. Отправьте фото заново.");
+      return;
+    }
+
+    const itemId = Number(ctx.match[1]);
+    try {
+      const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, itemId) });
+      if (!item) { await ctx.reply("Товар не найден."); return; }
+
+      await db.update(itemsTable).set({ photoUrl: ctx2.pendingPhotoPath }).where(eq(itemsTable.id, itemId));
+      userCtx.set(chatId, { mode: "warehouse" });
+
+      await ctx.reply(
+        `✅ Фото прикреплено к *${item.name}*!\n\nТеперь при просмотре остатков этого товара бот будет присылать фото.`,
+        { parse_mode: "Markdown" }
+      );
+    } catch (err) {
+      logger.error({ err }, "photo_item attach error");
+      await ctx.reply("Ошибка при сохранении фото.");
+    }
+  });
+
+  // ---- Photo: cancel ----
+  bot.action("photo_cancel", async (ctx) => {
+    await ctx.answerCbQuery();
+    const chatId = ctx.chat.id;
+    const prev = userCtx.get(chatId);
+    userCtx.set(chatId, { mode: prev?.mode === "photo_pending" ? "warehouse" : (prev?.mode ?? "main") });
+    await ctx.reply("❌ Отменено.");
   });
 
   // ============================== TEXT HANDLER ==============================

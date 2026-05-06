@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, Plus, Edit, Trash2, AlertTriangle, ImageIcon } from "lucide-react";
+import { Search, Plus, Edit, Trash2, AlertTriangle, ImageOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { PhotoUploader } from "@/components/PhotoUploader";
@@ -44,6 +44,7 @@ export default function Items() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ItemRow | null>(null);
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canDo } = useCurrentUser();
@@ -155,6 +156,7 @@ export default function Items() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-14">Фото</TableHead>
                 <TableHead>Наименование</TableHead>
                 <TableHead>Категория</TableHead>
                 <TableHead>Расположение</TableHead>
@@ -166,21 +168,36 @@ export default function Items() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Загрузка...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Загрузка...</TableCell></TableRow>
               ) : !items?.length ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Позиции не найдены</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Позиции не найдены</TableCell></TableRow>
               ) : (
-                (items as unknown as ItemRow[]).map((item) => (
+                (items as unknown as ItemRow[]).map((item) => {
+                  const thumbUrl = item.photoUrl
+                    ? `${BASE}/api/storage/objects/${item.photoUrl.replace(/^\/objects\//, "")}`
+                    : null;
+                  return (
                   <TableRow key={item.id} data-testid={`row-item-${item.id}`} className={item.isBelowThreshold ? "bg-destructive/3" : ""}>
+                    <TableCell className="py-2">
+                      {thumbUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewPhotoUrl(thumbUrl)}
+                          className="rounded overflow-hidden border border-border hover:opacity-80 transition-opacity"
+                          title="Открыть фото"
+                        >
+                          <img src={thumbUrl} alt={item.name} className="h-10 w-10 object-cover block" />
+                        </button>
+                      ) : (
+                        <div className="h-10 w-10 rounded border border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground/40">
+                          <ImageOff className="h-4 w-4" />
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         {item.isBelowThreshold && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
                         {item.name}
-                        {item.photoUrl && (
-                          <a href={`${BASE}/api/storage/objects/${item.photoUrl.replace(/^\/objects\//, "")}`} target="_blank" rel="noreferrer" title="Фото">
-                            <ImageIcon className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
-                          </a>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell>{item.categoryName ?? "—"}</TableCell>
@@ -201,12 +218,26 @@ export default function Items() {
                       </TableCell>
                     )}
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={!!previewPhotoUrl} onOpenChange={() => setPreviewPhotoUrl(null)}>
+        <DialogContent className="max-w-2xl p-2" aria-describedby={undefined}>
+          <DialogHeader className="p-2 pb-0"><DialogTitle>Фото товара</DialogTitle></DialogHeader>
+          {previewPhotoUrl && (
+            <img
+              src={previewPhotoUrl}
+              alt="Фото товара"
+              className="w-full max-h-[70vh] object-contain rounded"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">

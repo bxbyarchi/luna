@@ -47,7 +47,7 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 ### Frontend (`artifacts/m-sklad/src/pages/`)
 - `dashboard.tsx` — Recharts BarChart (spending over time) + PieChart (category breakdown) + 4 KPI cards + low stock alerts + top write-offs + active rentals widget (conditionally shown)
 - `categories.tsx` — Full CRUD (create/edit/delete) with dialog form
-- `items.tsx` — Full CRUD with search, low-stock badge, modal form with category select
+- `items.tsx` — Full CRUD with search, low-stock badge, modal form with category select + PhotoUploader; photo thumbnail column with click-to-enlarge lightbox
 - `receipts.tsx` — Goods receiving form with item select, auto-populates price; supports multiple photos per receipt
 - `write-offs.tsx` — Write-off form with item/staff/reason selectors (6 predefined reasons)
 - `inventory-audits.tsx` — Create audits, view items with system vs actual counts, save/submit
