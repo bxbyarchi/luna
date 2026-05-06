@@ -170,6 +170,17 @@ export interface WriteOff {
   createdAt: string;
 }
 
+export interface UpdateWriteOffBody {
+  quantity?: number;
+  reason?: string;
+  /** @nullable */
+  staffId?: number | null;
+  /** @nullable */
+  photoUrl?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
 export interface CreateWriteOffBody {
   itemId: number;
   quantity: number;

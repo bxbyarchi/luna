@@ -29,7 +29,7 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 - `categories.ts` — CRUD for categories (update uses PATCH)
 - `items.ts` — CRUD for items with low-stock flag, search (update uses PATCH)
 - `receipts.ts` — Goods receiving, updates item stock
-- `writeOffs.ts` — Write-off/breakage recording
+- `writeOffs.ts` — Write-off/breakage recording; PATCH/DELETE for managers (reverses stock on delete)
 - `inventoryAudits.ts` — Audit creation; PATCH update uses `itemId` (not auditItem.id); submit reconciles `items.currentStock` from actual counts
 - `staff.ts` — Staff directory CRUD (update uses PATCH)
 - `analytics.ts` — 6 endpoints: summary KPIs, category breakdown, spending over time (by period), top write-offs, low stock, active-rentals
@@ -49,7 +49,7 @@ Full-stack Russian-language restaurant inventory & ERP web app built as a pnpm m
 - `categories.tsx` — Full CRUD (create/edit/delete) with dialog form
 - `items.tsx` — Full CRUD with search, low-stock badge, modal form with category select + PhotoUploader; photo thumbnail column with click-to-enlarge lightbox
 - `receipts.tsx` — Goods receiving form with item select, auto-populates price; supports multiple photos per receipt
-- `write-offs.tsx` — Write-off form with item/staff/reason selectors (6 predefined reasons)
+- `write-offs.tsx` — Write-off form with item/staff/reason selectors (6 predefined reasons); managers can edit (qty/reason/staff/notes/photo) and delete (reverses stock)
 - `inventory-audits.tsx` — Create audits, view items with system vs actual counts, save/submit
 - `staff.tsx` — Full CRUD with active status badge
 - `audit-log.tsx` — Paginated table (uses `{rows, total}` from API) of all system actions with action/entity type badges

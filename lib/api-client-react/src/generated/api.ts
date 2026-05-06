@@ -54,6 +54,7 @@ import type {
   UpdateReceiptBody,
   UpdateRentalBody,
   UpdateStaffMemberBody,
+  UpdateWriteOffBody,
   WriteOff,
 } from "./api.schemas";
 
@@ -1668,6 +1669,177 @@ export function useGetWriteOff<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Update a write-off (manager/admin only)
+ */
+export const getUpdateWriteOffUrl = (id: number) => {
+  return `/api/write-offs/${id}`;
+};
+
+export const updateWriteOff = async (
+  id: number,
+  updateWriteOffBody: UpdateWriteOffBody,
+  options?: RequestInit,
+): Promise<WriteOff> => {
+  return customFetch<WriteOff>(getUpdateWriteOffUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateWriteOffBody),
+  });
+};
+
+export const getUpdateWriteOffMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWriteOff>>,
+    TError,
+    { id: number; data: BodyType<UpdateWriteOffBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateWriteOff>>,
+  TError,
+  { id: number; data: BodyType<UpdateWriteOffBody> },
+  TContext
+> => {
+  const mutationKey = ["updateWriteOff"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateWriteOff>>,
+    { id: number; data: BodyType<UpdateWriteOffBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateWriteOff(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateWriteOffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateWriteOff>>
+>;
+export type UpdateWriteOffMutationBody = BodyType<UpdateWriteOffBody>;
+export type UpdateWriteOffMutationError = ErrorType<void>;
+
+/**
+ * @summary Update a write-off (manager/admin only)
+ */
+export const useUpdateWriteOff = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateWriteOff>>,
+    TError,
+    { id: number; data: BodyType<UpdateWriteOffBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateWriteOff>>,
+  TError,
+  { id: number; data: BodyType<UpdateWriteOffBody> },
+  TContext
+> => {
+  return useMutation(getUpdateWriteOffMutationOptions(options));
+};
+
+/**
+ * @summary Delete a write-off and reverse stock adjustment (manager/admin only)
+ */
+export const getDeleteWriteOffUrl = (id: number) => {
+  return `/api/write-offs/${id}`;
+};
+
+export const deleteWriteOff = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteWriteOffUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteWriteOffMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWriteOff>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteWriteOff>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteWriteOff"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteWriteOff>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteWriteOff(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteWriteOffMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteWriteOff>>
+>;
+
+export type DeleteWriteOffMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a write-off and reverse stock adjustment (manager/admin only)
+ */
+export const useDeleteWriteOff = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteWriteOff>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteWriteOff>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteWriteOffMutationOptions(options));
+};
 
 /**
  * @summary List inventory audits

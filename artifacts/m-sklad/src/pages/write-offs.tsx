@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   useListWriteOffs, useCreateWriteOff, useListItems, useListStaff,
+  useUpdateWriteOff, useDeleteWriteOff,
   getListWriteOffsQueryKey, getListItemsQueryKey, getListStaffQueryKey,
 } from "@workspace/api-client-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -8,14 +9,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, ImageIcon } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PhotoUploader } from "@/components/PhotoUploader";
 
@@ -41,12 +42,35 @@ const writeOffSchema = z.object({
 });
 type WriteOffFormData = z.infer<typeof writeOffSchema>;
 
-type WriteOffRow = { id: number; itemId: number; itemName?: string | null; quantity: number | string; reason: string; staffId?: number | null; staffName?: string | null; photoUrl?: string | null; totalValue: number | string; createdAt: string };
+const editWriteOffSchema = z.object({
+  quantity: z.string().min(1, "Количество обязательно"),
+  reason: z.string().min(1, "Причина обязательна"),
+  staffId: z.string().optional(),
+  notes: z.string().optional(),
+  photoUrl: z.string().nullable().optional(),
+});
+type EditWriteOffFormData = z.infer<typeof editWriteOffSchema>;
+
+type WriteOffRow = {
+  id: number;
+  itemId: number;
+  itemName?: string | null;
+  quantity: number | string;
+  reason: string;
+  staffId?: number | null;
+  staffName?: string | null;
+  photoUrl?: string | null;
+  notes?: string | null;
+  totalValue: number | string;
+  createdAt: string;
+};
 type ItemOption = { id: number; name: string; unit: string };
 type StaffOption = { id: number; name: string };
 
 export default function WriteOffs() {
   const [open, setOpen] = useState(false);
+  const [editWriteOff, setEditWriteOff] = useState<WriteOffRow | null>(null);
+  const [deleteWriteOff, setDeleteWriteOff] = useState<WriteOffRow | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canDo, isLoading: authLoading } = useCurrentUser();
@@ -55,10 +79,17 @@ export default function WriteOffs() {
   const { data: items } = useListItems(undefined, { query: { queryKey: getListItemsQueryKey() } });
   const { data: staff } = useListStaff({ query: { queryKey: getListStaffQueryKey() } });
   const create = useCreateWriteOff();
+  const update = useUpdateWriteOff();
+  const remove = useDeleteWriteOff();
 
   const form = useForm<WriteOffFormData>({
     resolver: zodResolver(writeOffSchema),
     defaultValues: { itemId: "", quantity: "", reason: "", staffId: "", notes: "", photoUrl: null },
+  });
+
+  const editForm = useForm<EditWriteOffFormData>({
+    resolver: zodResolver(editWriteOffSchema),
+    defaultValues: { quantity: "", reason: "", staffId: "", notes: "", photoUrl: null },
   });
 
   const selectedItemId = form.watch("itemId");
@@ -72,7 +103,7 @@ export default function WriteOffs() {
         itemId: Number(data.itemId),
         quantity: Number(data.quantity),
         reason: data.reason,
-        staffId: data.staffId ? Number(data.staffId) : null,
+        staffId: data.staffId && data.staffId !== "none" ? Number(data.staffId) : null,
         notes: data.notes || null,
         photoUrl: data.photoUrl || null,
       }
@@ -86,6 +117,54 @@ export default function WriteOffs() {
       onError: () => toast({ title: "Ошибка", variant: "destructive" }),
     });
   }
+
+  function openEditDialog(wo: WriteOffRow) {
+    editForm.reset({
+      quantity: String(Number(wo.quantity)),
+      reason: wo.reason,
+      staffId: wo.staffId ? String(wo.staffId) : "",
+      notes: wo.notes ?? "",
+      photoUrl: wo.photoUrl ?? null,
+    });
+    setEditWriteOff(wo);
+  }
+
+  function onEditSubmit(data: EditWriteOffFormData) {
+    if (!editWriteOff) return;
+    update.mutate({
+      id: editWriteOff.id,
+      data: {
+        quantity: Number(data.quantity),
+        reason: data.reason,
+        staffId: data.staffId && data.staffId !== "none" ? Number(data.staffId) : null,
+        notes: data.notes || null,
+        photoUrl: data.photoUrl ?? null,
+      },
+    }, {
+      onSuccess: () => {
+        toast({ title: "Списание обновлено" });
+        queryClient.invalidateQueries({ queryKey: getListWriteOffsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+        setEditWriteOff(null);
+      },
+      onError: () => toast({ title: "Ошибка при обновлении", variant: "destructive" }),
+    });
+  }
+
+  function onDeleteConfirm() {
+    if (!deleteWriteOff) return;
+    remove.mutate({ id: deleteWriteOff.id }, {
+      onSuccess: () => {
+        toast({ title: "Списание удалено" });
+        queryClient.invalidateQueries({ queryKey: getListWriteOffsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListItemsQueryKey() });
+        setDeleteWriteOff(null);
+      },
+      onError: () => toast({ title: "Ошибка при удалении", variant: "destructive" }),
+    });
+  }
+
+  const canManage = canDo("manager");
 
   return (
     <div className="space-y-6">
@@ -115,13 +194,14 @@ export default function WriteOffs() {
                 <TableHead className="text-right">Количество</TableHead>
                 <TableHead className="text-right">Сумма</TableHead>
                 <TableHead className="text-center">Фото</TableHead>
+                {!authLoading && canManage && <TableHead className="text-center">Действия</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Загрузка...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={canManage ? 8 : 7} className="text-center py-8 text-muted-foreground">Загрузка...</TableCell></TableRow>
               ) : !writeOffs?.length ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Нет списаний</TableCell></TableRow>
+                <TableRow><TableCell colSpan={canManage ? 8 : 7} className="text-center py-8 text-muted-foreground">Нет списаний</TableCell></TableRow>
               ) : (
                 (writeOffs as unknown as WriteOffRow[]).map((wo) => (
                   <TableRow key={wo.id} data-testid={`row-writeoff-${wo.id}`}>
@@ -133,11 +213,46 @@ export default function WriteOffs() {
                     <TableCell className="text-right font-semibold text-destructive">−{Number(wo.totalValue).toFixed(2)} сом</TableCell>
                     <TableCell className="text-center">
                       {wo.photoUrl ? (
-                        <a href={`/api/storage/objects/${wo.photoUrl.replace(/^\/objects\//, "")}`} target="_blank" rel="noopener noreferrer">
-                          <ImageIcon className="h-4 w-4 text-primary mx-auto" />
+                        <a
+                          href={`/api/storage/objects/${wo.photoUrl.replace(/^\/objects\//, "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block"
+                        >
+                          <img
+                            src={`/api/storage/objects/${wo.photoUrl.replace(/^\/objects\//, "")}`}
+                            alt="Фото списания"
+                            className="h-10 w-10 object-cover rounded hover:opacity-80 transition-opacity mx-auto"
+                          />
                         </a>
                       ) : <span className="text-muted-foreground text-xs">—</span>}
                     </TableCell>
+                    {!authLoading && canManage && (
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditDialog(wo)}
+                            data-testid={`btn-edit-writeoff-${wo.id}`}
+                            aria-label="Редактировать"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => setDeleteWriteOff(wo)}
+                            data-testid={`btn-delete-writeoff-${wo.id}`}
+                            aria-label="Удалить"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -146,6 +261,7 @@ export default function WriteOffs() {
         </CardContent>
       </Card>
 
+      {/* Create dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Списание товара</DialogTitle></DialogHeader>
@@ -217,6 +333,84 @@ export default function WriteOffs() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dialog */}
+      <Dialog open={editWriteOff !== null} onOpenChange={(o) => { if (!o) setEditWriteOff(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Редактировать списание</DialogTitle></DialogHeader>
+          {editWriteOff && (
+            <div className="text-sm text-muted-foreground mb-2">
+              Позиция: <span className="font-medium text-foreground">{editWriteOff.itemName ?? "—"}</span>
+            </div>
+          )}
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={editForm.control} name="quantity" render={({ field }) => (
+                  <FormItem><FormLabel>Количество *</FormLabel><FormControl><Input type="number" step="0.001" placeholder="0" {...field} data-testid="input-edit-wo-qty" /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={editForm.control} name="reason" render={({ field }) => (
+                  <FormItem><FormLabel>Причина *</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl><SelectTrigger data-testid="select-edit-wo-reason"><SelectValue placeholder="Выбрать" /></SelectTrigger></FormControl>
+                      <SelectContent>{REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+                    </Select>
+                  <FormMessage /></FormItem>
+                )} />
+              </div>
+              <FormField control={editForm.control} name="staffId" render={({ field }) => (
+                <FormItem><FormLabel>Ответственный сотрудник</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl><SelectTrigger data-testid="select-edit-wo-staff"><SelectValue placeholder="Не указан" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">Не указан</SelectItem>
+                      {(staff as StaffOption[] | undefined)?.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                <FormMessage /></FormItem>
+              )} />
+              <FormField control={editForm.control} name="notes" render={({ field }) => (
+                <FormItem><FormLabel>Примечания</FormLabel><FormControl><Input placeholder="Дополнительная информация" {...field} data-testid="input-edit-wo-notes" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <div className="space-y-2">
+                <label className="text-sm font-medium leading-none">Фото повреждения</label>
+                <PhotoUploader
+                  value={editForm.watch("photoUrl") ? [editForm.watch("photoUrl")!] : null}
+                  onChange={(paths: string[]) => editForm.setValue("photoUrl", paths[0] ?? null)}
+                  label="Сфотографировать ущерб"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setEditWriteOff(null)}>Отмена</Button>
+                <Button type="submit" variant="destructive" disabled={update.isPending} data-testid="btn-submit-edit-writeoff">Сохранить</Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteWriteOff !== null} onOpenChange={(o) => { if (!o) setDeleteWriteOff(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Удалить списание?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Списание <span className="font-medium text-foreground">{deleteWriteOff?.itemName ?? "—"}</span> ({Number(deleteWriteOff?.quantity ?? 0).toFixed(2)} ед.) будет удалено, а запас восстановлен. Это действие нельзя отменить.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteWriteOff(null)}>Отмена</Button>
+            <Button
+              variant="destructive"
+              onClick={onDeleteConfirm}
+              disabled={remove.isPending}
+              data-testid="btn-confirm-delete-writeoff"
+            >
+              Удалить
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

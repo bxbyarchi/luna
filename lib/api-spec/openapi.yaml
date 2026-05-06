@@ -403,6 +403,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WriteOff"
+    patch:
+      operationId: updateWriteOff
+      tags: [write-offs]
+      summary: Update a write-off (manager/admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWriteOffBody"
+      responses:
+        "200":
+          description: Updated write-off
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteOff"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteWriteOff
+      tags: [write-offs]
+      summary: Delete a write-off and reverse stock adjustment (manager/admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
 
   /inventory-audits:
     get:
@@ -1106,6 +1144,20 @@ components:
         - reason
         - totalValue
         - createdAt
+
+    UpdateWriteOffBody:
+      type: object
+      properties:
+        quantity:
+          type: number
+        reason:
+          type: string
+        staffId:
+          type: ["integer", "null"]
+        photoUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
 
     CreateWriteOffBody:
       type: object

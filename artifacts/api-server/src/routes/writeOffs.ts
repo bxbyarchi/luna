@@ -136,4 +136,92 @@ router.get("/write-offs/:id", requireAuth(), async (req: Request, res: Response)
   res.json(row);
 });
 
+router.patch("/write-offs/:id", requireAuth(), requireRole("manager"), async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+
+  const [existing] = await db
+    .select()
+    .from(writeOffsTable)
+    .where(eq(writeOffsTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const { quantity, reason, staffId, photoUrl, notes } = req.body;
+
+  if (quantity !== undefined && (isNaN(Number(quantity)) || Number(quantity) <= 0)) {
+    res.status(400).json({ error: "quantity must be a positive number" });
+    return;
+  }
+
+  const oldQty = Number(existing.quantity);
+  const newQty = quantity !== undefined ? Number(quantity) : oldQty;
+
+  const qtyChanged = quantity !== undefined;
+
+  let newTotalValue: string | undefined;
+  if (qtyChanged) {
+    const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, existing.itemId) });
+    const pricePerUnit = item ? Number(item.pricePerUnit) : 0;
+    newTotalValue = String(pricePerUnit * newQty);
+  }
+
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(writeOffsTable)
+      .set({
+        ...(qtyChanged && { quantity: String(newQty) }),
+        ...(qtyChanged && newTotalValue !== undefined && { totalValue: newTotalValue }),
+        ...(reason !== undefined && { reason }),
+        ...(staffId !== undefined && { staffId: staffId ? Number(staffId) : null }),
+        ...(photoUrl !== undefined && { photoUrl }),
+        ...(notes !== undefined && { notes }),
+      })
+      .where(eq(writeOffsTable.id, id))
+      .returning();
+
+    if (qtyChanged) {
+      const qtyDelta = newQty - oldQty;
+      await tx
+        .update(itemsTable)
+        .set({ currentStock: sql`CAST(${itemsTable.currentStock} AS DECIMAL) - ${qtyDelta}` })
+        .where(eq(itemsTable.id, existing.itemId));
+    }
+
+    return row;
+  });
+
+  await logAudit({ action: "update", entityType: "write_off", entityId: id, clerkUserId: req.auth?.userId });
+  res.json(updated);
+});
+
+router.delete("/write-offs/:id", requireAuth(), requireRole("manager"), async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+
+  const [existing] = await db
+    .select()
+    .from(writeOffsTable)
+    .where(eq(writeOffsTable.id, id));
+
+  if (!existing) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const qty = Number(existing.quantity);
+
+  await db.transaction(async (tx) => {
+    await tx.delete(writeOffsTable).where(eq(writeOffsTable.id, id));
+    await tx
+      .update(itemsTable)
+      .set({ currentStock: sql`CAST(${itemsTable.currentStock} AS DECIMAL) + ${qty}` })
+      .where(eq(itemsTable.id, existing.itemId));
+  });
+
+  await logAudit({ action: "delete", entityType: "write_off", entityId: id, clerkUserId: req.auth?.userId });
+  res.status(204).send();
+});
+
 export default router;
