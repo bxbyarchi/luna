@@ -50,6 +50,7 @@ type Receipt = {
   photoUrls?: string[] | null;
   notes?: string | null;
   createdAt: string;
+  recordedByName?: string | null;
 };
 type ItemOption = { id: number; name: string; unit: string; pricePerUnit: string };
 
@@ -246,14 +247,15 @@ export default function Receipts() {
                 <TableHead className="text-right">Цена за ед.</TableHead>
                 <TableHead className="text-right">Итого</TableHead>
                 <TableHead className="text-center">Фото</TableHead>
+                <TableHead>Создал</TableHead>
                 {!authLoading && canManage && <TableHead className="text-center">Действия</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={canManage ? 8 : 7} className="text-center py-8 text-muted-foreground">Загрузка...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={canManage ? 9 : 8} className="text-center py-8 text-muted-foreground">Загрузка...</TableCell></TableRow>
               ) : !receipts?.length ? (
-                <TableRow><TableCell colSpan={canManage ? 8 : 7} className="text-center py-8 text-muted-foreground">Нет поступлений</TableCell></TableRow>
+                <TableRow><TableCell colSpan={canManage ? 9 : 8} className="text-center py-8 text-muted-foreground">Нет поступлений</TableCell></TableRow>
               ) : (
                 (receipts as unknown as Receipt[]).map((r) => {
                   const photos = getPhotoUrls(r);
@@ -268,6 +270,7 @@ export default function Receipts() {
                       <TableCell className="text-center">
                         <PhotoThumbnail photos={photos} onClick={() => openLightbox(photos, 0)} receiptId={r.id} />
                       </TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{r.recordedByName ?? "—"}</TableCell>
                       {!authLoading && canManage && (
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">

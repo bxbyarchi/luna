@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "../lib/requireAuth";
 import { db } from "@workspace/db";
-import { receiptsTable, itemsTable } from "@workspace/db";
+import { receiptsTable, itemsTable, usersTable } from "@workspace/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
 import { requireRole } from "../middleware/rbac";
@@ -29,9 +29,11 @@ router.get("/receipts", requireAuth(), async (req: Request, res: Response) => {
       photoUrls: receiptsTable.photoUrls,
       notes: receiptsTable.notes,
       createdAt: receiptsTable.createdAt,
+      recordedByName: sql<string | null>`NULLIF(TRIM(COALESCE(${usersTable.firstName}, '') || ' ' || COALESCE(${usersTable.lastName}, '')), '')`,
     })
     .from(receiptsTable)
     .leftJoin(itemsTable, eq(receiptsTable.itemId, itemsTable.id))
+    .leftJoin(usersTable, eq(receiptsTable.recordedByClerkId, usersTable.clerkUserId))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(sql`${receiptsTable.createdAt} DESC`);
 

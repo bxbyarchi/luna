@@ -1056,6 +1056,8 @@ components:
           type: ["string", "null"]
         recordedByClerkId:
           type: ["string", "null"]
+        recordedByName:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
