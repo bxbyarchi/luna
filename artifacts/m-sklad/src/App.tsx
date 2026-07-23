@@ -50,7 +50,7 @@ const clerkAppearance = {
     logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
   },
   variables: {
-    colorPrimary: "hsl(152 69% 31%)",
+    colorPrimary: "hsl(345 100% 25%)",
     colorForeground: "hsl(20 14% 10%)",
     colorMutedForeground: "hsl(20 8% 40%)",
     colorDanger: "hsl(0 84% 60%)",
@@ -296,7 +296,7 @@ function ClerkProviderWithRoutes() {
           ...ruRU.signIn,
           start: {
             ...ruRU.signIn?.start,
-            title: "Войти в M-Sklad",
+            title: "Войти в Luna-Sklad",
             subtitle: "Введите данные для доступа к системе управления складом",
           },
         },
@@ -305,7 +305,7 @@ function ClerkProviderWithRoutes() {
           start: {
             ...ruRU.signUp?.start,
             title: "Создать аккаунт",
-            subtitle: "Заполните данные для регистрации в M-Sklad",
+            subtitle: "Заполните данные для регистрации в Luna-Sklad",
           },
         },
       }}

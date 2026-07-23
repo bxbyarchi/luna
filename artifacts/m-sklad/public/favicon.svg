@@ -1,3 +1,19 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+  <defs>
+    <linearGradient id="fg" x1="0" y1="0" x2="0" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#9B0028"/>
+      <stop offset="100%" stop-color="#5C0016"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="38" fill="url(#fg)"/>
+  <text
+    x="90" y="108"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    fill="white"
+    font-family="'Helvetica Neue', Arial, sans-serif"
+    font-size="74"
+    font-weight="800"
+    letter-spacing="-3"
+  >LG</text>
 </svg>

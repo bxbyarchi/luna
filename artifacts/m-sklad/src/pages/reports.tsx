@@ -478,7 +478,7 @@ export default function Reports() {
           <style>{`
             @media print { #print-report { display: block !important; } }
           `}</style>
-          <h1 style={{ margin: 0 }}>M-Sklad — Сводный отчёт{categoryId !== "all" ? `: ${categoryLabel}` : ""}</h1>
+          <h1 style={{ margin: 0 }}>Luna-Sklad — Сводный отчёт{categoryId !== "all" ? `: ${categoryLabel}` : ""}</h1>
           <p style={{ margin: "2px 0 12px", color: "#666", fontSize: 12 }}>
             Период: {from} — {to} &nbsp;|&nbsp; Сформирован: {new Date().toLocaleDateString("ru-RU")}
           </p>
@@ -531,7 +531,7 @@ export default function Reports() {
           />
 
           <p style={{ marginTop: 24, fontSize: 10, color: "#aaa", borderTop: "1px solid #eee", paddingTop: 8 }}>
-            M-Sklad • Автоматически сформированный отчёт
+            Luna-Sklad • Автоматически сформированный отчёт
           </p>
         </div>
       )}

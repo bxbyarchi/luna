@@ -49,8 +49,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <>
       <div className="p-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="M-Sklad" className="h-8 w-8" />
-          <span className="text-base font-semibold tracking-tight">M-Sklad</span>
+          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Luna-Sklad" className="h-8 w-8" />
+          <span className="text-base font-semibold tracking-tight">Luna-Sklad</span>
         </div>
         <button
           className="md:hidden text-sidebar-foreground/70 hover:text-sidebar-foreground p-1"
@@ -139,8 +139,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2">
-            <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="M-Sklad" className="h-6 w-6" />
-            <span className="font-semibold text-sm">M-Sklad</span>
+            <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Luna-Sklad" className="h-6 w-6" />
+            <span className="font-semibold text-sm">Luna-Sklad</span>
           </div>
         </header>
 
