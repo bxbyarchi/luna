@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "M-Sklad"
+version = "1.0.0"
+id = "artifacts/m-sklad"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25487
+
+[services.development]
+run = "pnpm --filter @workspace/m-sklad run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/m-sklad", "run", "build" ]
+publicDir = "artifacts/m-sklad/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25487"
+BASE_PATH = "/"

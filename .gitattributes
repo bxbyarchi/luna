@@ -1,0 +1,2 @@
+artifacts/m-sklad/public/code_clean.zip filter=lfs diff=lfs merge=lfs -text
+project.zip filter=lfs diff=lfs merge=lfs -text

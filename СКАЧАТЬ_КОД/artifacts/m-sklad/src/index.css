@@ -1,0 +1,252 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: var(--primary-border);
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary-border: var(--secondary-border);
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-border: var(--muted-border);
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-border: var(--accent-border);
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-border: var(--destructive-border);
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-primary-border: var(--sidebar-primary-border);
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-accent-border: var(--sidebar-accent-border);
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer theme, base, clerk, components, utilities;
+@import '@clerk/themes/shadcn.css';
+
+/* LIGHT MODE */
+:root {
+  --button-outline: rgba(0,0,0, .10);
+  --badge-outline: rgba(0,0,0, .05);
+
+  --opaque-button-border-intensity: -8;
+
+  --elevate-1: rgba(0,0,0, .03);
+  --elevate-2: rgba(0,0,0, .08);
+
+  --background: 40 20% 98%;
+  --foreground: 20 14% 10%;
+  --border: 40 10% 88%;
+  --card: 0 0% 100%;
+  --card-foreground: 20 14% 10%;
+  --card-border: 40 10% 92%;
+
+  --sidebar: 20 14% 10%;
+  --sidebar-foreground: 40 20% 98%;
+  --sidebar-border: 20 14% 14%;
+  --sidebar-primary: 152 69% 31%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 20 14% 16%;
+  --sidebar-accent-foreground: 40 20% 98%;
+  --sidebar-ring: 152 69% 31%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14% 10%;
+  --popover-border: 40 10% 92%;
+
+  --primary: 152 69% 31%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 40 10% 92%;
+  --secondary-foreground: 20 14% 10%;
+  --muted: 40 10% 92%;
+  --muted-foreground: 20 8% 40%;
+  --accent: 40 10% 92%;
+  --accent-foreground: 20 14% 10%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --input: 40 10% 88%;
+  --ring: 152 69% 31%;
+
+  --chart-1: 152 69% 31%;
+  --chart-2: 20 14% 10%;
+  --chart-3: 40 10% 60%;
+  --chart-4: 30 80% 50%;
+  --chart-5: 0 84% 60%;
+
+  --app-font-sans: 'Inter', sans-serif;
+  --app-font-serif: Georgia, serif;
+  --app-font-mono: Menlo, monospace;
+  --radius: 0.5rem;
+  
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --primary-border: hsl(var(--primary));
+  --secondary-border: hsl(var(--secondary));
+  --muted-border: hsl(var(--muted));
+  --accent-border: hsl(var(--accent));
+  --destructive-border: hsl(var(--destructive));
+}
+
+.dark {
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+
+  --opaque-button-border-intensity: 9;
+
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
+
+  --background: 20 14% 10%;
+  --foreground: 40 20% 98%;
+  --border: 20 14% 16%;
+  --card: 20 14% 12%;
+  --card-foreground: 40 20% 98%;
+  --card-border: 20 14% 16%;
+
+  --sidebar: 20 14% 10%;
+  --sidebar-foreground: 40 20% 98%;
+  --sidebar-border: 20 14% 16%;
+  --sidebar-primary: 152 69% 31%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 20 14% 16%;
+  --sidebar-accent-foreground: 40 20% 98%;
+  --sidebar-ring: 152 69% 31%;
+
+  --popover: 20 14% 12%;
+  --popover-foreground: 40 20% 98%;
+  --popover-border: 20 14% 16%;
+
+  --primary: 152 69% 31%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 20 14% 16%;
+  --secondary-foreground: 40 20% 98%;
+  --muted: 20 14% 16%;
+  --muted-foreground: 40 10% 60%;
+  --accent: 20 14% 16%;
+  --accent-foreground: 40 20% 98%;
+
+  --destructive: 0 62% 40%;
+  --destructive-foreground: 0 0% 100%;
+
+  --input: 20 14% 16%;
+  --ring: 152 69% 31%;
+
+  --chart-1: 152 69% 31%;
+  --chart-2: 40 20% 98%;
+  --chart-3: 40 10% 60%;
+  --chart-4: 30 80% 50%;
+  --chart-5: 0 62% 40%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+.cl-formFieldInput::placeholder { color: hsl(var(--muted-foreground)); opacity: 1; }
+
+/* ============================================================
+   Mobile responsive utilities
+   ============================================================ */
+
+/* Horizontal-scrolling table wrapper for pages that use raw tables */
+.table-scroll-mobile {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Larger minimum touch target for interactive elements on mobile */
+@media (max-width: 767px) {
+  button, [role="button"] {
+    min-height: 40px;
+  }
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: 16px; /* prevents iOS auto-zoom */
+    min-height: 44px;
+  }
+
+  /* Camera / file input — bigger tap area */
+  input[type="file"] + button,
+  [data-testid="photo-upload-btn"] {
+    min-height: 48px;
+    width: 100%;
+  }
+
+  /* Dialog full-screen on mobile */
+  [role="dialog"] > div {
+    max-height: 95dvh;
+    overflow-y: auto;
+  }
+}
+
+/* Mobile item cards — shown only on small screens */
+.mobile-cards { display: none; }
+.desktop-table { display: block; }
+
+@media (max-width: 767px) {
+  .mobile-cards { display: block; }
+  .desktop-table { display: none; }
+}
+
+/* Stack form grids to single column on mobile */
+@media (max-width: 639px) {
+  .grid-cols-2 { grid-template-columns: 1fr !important; }
+  .col-span-2 { grid-column: span 1 !important; }
+}
+
