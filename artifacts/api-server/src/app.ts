@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "node:path";
 import { clerkMiddleware, verifyToken } from "@clerk/express";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -37,17 +38,8 @@ app.use(express.urlencoded({ extended: true }));
 /**
  * Bearer-token verifier middleware.
  *
- * Root cause of the persistent 401: Clerk's clerkMiddleware() authenticates
- * browsers in dev mode by checking the __clerk_db_jwt cookie, which it sets
- * on the Clerk dev-instance domain (clerk.direct-ringtail-14.clerk.accounts.dev).
- * That domain is unreachable from the Replit server due to a TLS handshake
- * failure — so token verification via JWKS always fails, returning:
- *   x-clerk-auth-reason: dev-browser-missing
- *
- * Fix: before clerkMiddleware() runs, intercept requests that carry an
- * Authorization: Bearer header, verify the JWT offline using CLERK_JWT_KEY
- * (the RSA public key fetched from api.clerk.com/v1/jwks), and attach a
- * compatible req.auth object. This path never calls the failing JWKS URL.
+ * Verify Clerk bearer tokens locally when a valid JWT key is configured,
+ * avoiding an extra JWKS request for API calls from the browser.
  */
 app.use(async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
@@ -59,7 +51,6 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
       secretKey: process.env.CLERK_SECRET_KEY!,
       jwtKey: process.env.CLERK_JWT_KEY ?? undefined,
     });
-    // Attach auth object compatible with req.auth?.userId pattern used in routes
     (req as Request & { auth: Record<string, unknown> }).auth = {
       userId: payload.sub,
       sessionId: (payload as Record<string, unknown>).sid as string | undefined,
@@ -67,14 +58,11 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     };
     return next();
   } catch {
-    // Invalid/expired token — fall through; requireAuth() will return 401
+    // Invalid/expired token — fall through; requireAuth() will return 401.
   }
   next();
 });
 
-// Only run clerkMiddleware when our Bearer verifier didn't already set req.auth.
-// If we run clerkMiddleware unconditionally, it will overwrite the auth object
-// we just set above (it always calls authenticateRequest() regardless).
 const _clerkMw = clerkMiddleware();
 app.use((req: Request, res: Response, next: NextFunction) => {
   if ((req as Request & { auth?: { userId?: string } }).auth?.userId) {
@@ -89,5 +77,20 @@ const telegramWebhook = initTelegramBot();
 if (telegramWebhook) {
   app.use("/api", telegramWebhook);
 }
+
+// The Vite build is emitted to artifacts/m-sklad/dist/public. The API build
+// runs from artifacts/api-server/dist, so resolve the sibling artifact path
+// from the compiled server directory at runtime.
+const frontendDist = path.resolve(import.meta.dirname, "../../m-sklad/dist/public");
+app.use(express.static(frontendDist));
+
+// SPA fallback: let React Router handle client-side routes, while preserving
+// API and Clerk proxy paths for their own middleware.
+app.get("/{*splat}", (req: Request, res: Response, next: NextFunction) => {
+  if (req.path.startsWith("/api") || req.path.startsWith(CLERK_PROXY_PATH)) {
+    return next();
+  }
+  res.sendFile(path.join(frontendDist, "index.html"));
+});
 
 export default app;
