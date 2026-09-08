@@ -20,8 +20,8 @@ export async function getWarehouseScope(req: Request): Promise<WarehouseScope | 
   return { userId, role: user.role, locationId: user.locationId ?? null };
 }
 
-export function canAccessLocation(scope: WarehouseScope, locationId: number): boolean {
-  return scope.role === "admin" || scope.locationId === locationId;
+export function canAccessLocation(scope: WarehouseScope | null, locationId: number | null): boolean {
+  return !!scope && locationId !== null && (scope.role === "admin" || scope.locationId === locationId);
 }
 
 export async function requireWarehouseLocation(req: Request, locationId: number): Promise<WarehouseScope | null> {
