@@ -3,10 +3,12 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { itemsTable } from "./items";
 import { staffTable } from "./staff";
+import { locationsTable } from "./locations";
 
 export const writeOffsTable = pgTable("write_offs", {
   id: serial("id").primaryKey(),
   itemId: integer("item_id").notNull().references(() => itemsTable.id),
+  locationId: integer("location_id").references(() => locationsTable.id, { onDelete: "set null" }),
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
   reason: text("reason").notNull(),
   staffId: integer("staff_id").references(() => staffTable.id),
