@@ -16,12 +16,12 @@ async function syncLegacyTotal(tx: any, itemId: number) {
 
 async function resolveLocation(req: Request, requested?: unknown) {
   const scope = await getWarehouseScope(req);
-  if (!scope) return { scope, locationId: 0, unauthorized: true };
-  const locationId = requested !== undefined && requested !== null && requested !== "" ? Number(requested) : scope.locationId;
-  if (!Number.isInteger(locationId) || locationId <= 0) return { scope, locationId: 0 };
-  if (!canAccessLocation(scope, locationId)) return { scope, locationId: 0, forbidden: true };
-  if (!(await locationExists(locationId))) return { scope, locationId: 0, invalid: true };
-  return { scope, locationId };
+  if (!scope) return { scope, locationId: null as number | null, unauthorized: true };
+  const requestedId = requested !== undefined && requested !== null && requested !== "" ? Number(requested) : scope.locationId;
+  if (requestedId === null || !Number.isInteger(requestedId) || requestedId <= 0) return { scope, locationId: null as number | null };
+  if (!canAccessLocation(scope, requestedId)) return { scope, locationId: null as number | null, forbidden: true };
+  if (!(await locationExists(requestedId))) return { scope, locationId: null as number | null, invalid: true };
+  return { scope, locationId: requestedId };
 }
 
 router.get("/inventory-audits", requireAuth(), async (req: Request, res: Response) => {
@@ -44,10 +44,12 @@ router.post("/inventory-audits", requireAuth(), requireRole("admin"), async (req
   if (resolved.unauthorized) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   if (resolved.forbidden) { res.status(403).json({ error: "No access to this warehouse" }); return; }
   if (resolved.invalid) { res.status(400).json({ error: "Invalid warehouse" }); return; }
-  if (!resolved.locationId) { res.status(400).json({ error: "locationId required" }); return; }
+  const locationId = resolved.locationId;
+  if (locationId === null) { res.status(400).json({ error: "locationId required" }); return; }
   const audit = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(inventoryAuditsTable).values({ title, locationId: resolved.locationId, status: "draft" }).returning();
-    const items = await tx.select({ itemId: itemsTable.id, stock: warehouseStockTable.currentStock }).from(itemsTable).leftJoin(warehouseStockTable, and(eq(warehouseStockTable.itemId, itemsTable.id), eq(warehouseStockTable.locationId, resolved.locationId)));
+    const [created] = await tx.insert(inventoryAuditsTable).values({ title, locationId, status: "draft" }).returning();
+    if (!created) throw new Error("Failed to create inventory audit");
+    const items = await tx.select({ itemId: itemsTable.id, stock: warehouseStockTable.currentStock }).from(itemsTable).leftJoin(warehouseStockTable, and(eq(warehouseStockTable.itemId, itemsTable.id), eq(warehouseStockTable.locationId, locationId)));
     if (items.length) await tx.insert(auditItemsTable).values(items.map((item) => ({ auditId: created.id, itemId: item.itemId, systemStock: item.stock ?? "0", actualStock: null })));
     return created;
   });
@@ -86,14 +88,16 @@ router.post("/inventory-audits/:id/submit", requireAuth(), requireRole("admin"),
   const scope = await getWarehouseScope(req);
   if (!scope || !canAccessLocation(scope, audit.locationId ?? -1)) { res.status(403).json({ error: "Forbidden" }); return; }
   if (audit.status === "submitted") { res.status(400).json({ error: "Already submitted" }); return; }
+  const auditLocationId = audit.locationId;
+  if (auditLocationId === null) { res.status(400).json({ error: "Inventory audit has no warehouse" }); return; }
   const auditItems = await db.select().from(auditItemsTable).where(eq(auditItemsTable.auditId, id));
   await db.transaction(async (tx) => {
     for (const auditItem of auditItems) {
       if (auditItem.actualStock === null) continue;
       const actual = Number(auditItem.actualStock);
-      const existingStock = await tx.query.warehouseStockTable.findFirst({ where: and(eq(warehouseStockTable.itemId, auditItem.itemId), eq(warehouseStockTable.locationId, audit.locationId!)) });
+      const existingStock = await tx.query.warehouseStockTable.findFirst({ where: and(eq(warehouseStockTable.itemId, auditItem.itemId), eq(warehouseStockTable.locationId, auditLocationId)) });
       if (existingStock) await tx.update(warehouseStockTable).set({ currentStock: String(actual) }).where(eq(warehouseStockTable.id, existingStock.id));
-      else await tx.insert(warehouseStockTable).values({ itemId: auditItem.itemId, locationId: audit.locationId!, currentStock: String(actual) });
+      else await tx.insert(warehouseStockTable).values({ itemId: auditItem.itemId, locationId: auditLocationId, currentStock: String(actual) });
       await syncLegacyTotal(tx, auditItem.itemId);
       const [updatedItem] = await tx.select({ name: itemsTable.name, unit: itemsTable.unit, minThreshold: itemsTable.minThreshold }).from(itemsTable).where(eq(itemsTable.id, auditItem.itemId));
       if (updatedItem?.minThreshold !== null && actual <= Number(updatedItem.minThreshold)) void sendLowStockAlert(updatedItem.name, actual, Number(updatedItem.minThreshold), updatedItem.unit ?? "ед.");
