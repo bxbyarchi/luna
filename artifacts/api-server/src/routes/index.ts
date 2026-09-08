@@ -16,6 +16,7 @@ import onboardingRouter from "./onboarding";
 import settingsRouter from "./settings";
 import locationsRouter from "./locations";
 import transfersRouter from "./transfers";
+import userLocationsRouter from "./userLocations";
 
 const router: IRouter = Router();
 
@@ -24,6 +25,7 @@ router.use(authRouter);
 router.use(onboardingRouter);
 router.use(locationsRouter);
 router.use(transfersRouter);
+router.use(userLocationsRouter);
 router.use(categoriesRouter);
 router.use(itemsRouter);
 router.use(receiptsRouter);
