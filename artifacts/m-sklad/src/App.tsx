@@ -21,25 +21,19 @@ import Settings from "@/pages/settings";
 import Rentals from "@/pages/rentals";
 import Onboarding from "@/pages/onboarding";
 import Reports from "@/pages/reports";
-
 import { AppLayout } from "@/components/layout";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { AppRole } from "@/hooks/useCurrentUser";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
-
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function stripBase(path: string): string {
-  return basePath && path.startsWith(basePath)
-    ? path.slice(basePath.length) || "/"
-    : path;
+  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || "/" : path;
 }
 
-if (!clerkPubKey) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in environment");
-}
+if (!clerkPubKey) throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in environment");
 
 const clerkAppearance = {
   theme: shadcn,
@@ -50,7 +44,7 @@ const clerkAppearance = {
     logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
   },
   variables: {
-    colorPrimary: "hsl(345 100% 25%)",
+    colorPrimary: "hsl(190 80% 38%)",
     colorForeground: "hsl(20 14% 10%)",
     colorMutedForeground: "hsl(20 8% 40%)",
     colorDanger: "hsl(0 84% 60%)",
@@ -91,197 +85,69 @@ const clerkAppearance = {
 };
 
 function SignInPage() {
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-muted/30 px-4">
-      <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
-    </div>
-  );
+  return <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4"><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div>;
 }
-
 function SignUpPage() {
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-muted/30 px-4">
-      <SignUp
-        routing="path"
-        path={`${basePath}/sign-up`}
-        signInUrl={`${basePath}/sign-in`}
-        fallbackRedirectUrl={`${basePath}/onboarding`}
-      />
-    </div>
-  );
+  return <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4"><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} fallbackRedirectUrl={`${basePath}/onboarding`} /></div>;
 }
-
 function HomeRedirect() {
   const { isLoaded, isSignedIn } = useAuth();
-
-  if (!isLoaded) {
-    return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-muted/30">
-        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
+  if (!isLoaded) return <div className="min-h-[100dvh] flex items-center justify-center bg-background"><div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>;
   if (isSignedIn) return <Redirect to="/dashboard" />;
   return <Redirect to="/sign-in" />;
 }
-
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isLoaded, isSignedIn } = useAuth();
-
-  if (!isLoaded) {
-    return (
-      <div className="min-h-[100dvh] flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
-  if (!isSignedIn) {
-    return <Redirect to="/" />;
-  }
-
-  return (
-    <AppLayout>
-      <Component />
-    </AppLayout>
-  );
+  if (!isLoaded) return <div className="min-h-[100dvh] flex items-center justify-center"><div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>;
+  if (!isSignedIn) return <Redirect to="/" />;
+  return <AppLayout><Component /></AppLayout>;
 }
-
-/**
- * Inner component rendered only when the user is confirmed signed-in.
- * Checks the user's role from the API and either renders the page or
- * redirects to /dashboard. Only shows a spinner while the first
- * /api/auth/me fetch is in-flight (isLoading). Once the fetch settles
- * (success or all retries exhausted), the role decision is made
- * immediately so there is no indefinite spinner.
- */
 function RoleCheck({ component: Component, minRole }: { component: React.ComponentType; minRole: AppRole }) {
   const { canDo, isLoading } = useCurrentUser();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-[100dvh] flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
-  if (!canDo(minRole)) {
-    return (
-      <AppLayout>
-        <AccessDenied />
-      </AppLayout>
-    );
-  }
-
-  return (
-    <AppLayout>
-      <Component />
-    </AppLayout>
-  );
+  if (isLoading) return <div className="min-h-[100dvh] flex items-center justify-center"><div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>;
+  if (!canDo(minRole)) return <AppLayout><AccessDenied /></AppLayout>;
+  return <AppLayout><Component /></AppLayout>;
 }
-
 function RoleProtectedRoute({ component: Component, minRole }: { component: React.ComponentType; minRole: AppRole }) {
   const { isLoaded, isSignedIn } = useAuth();
-
-  if (!isLoaded) {
-    return (
-      <div className="min-h-[100dvh] flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
-  if (!isSignedIn) {
-    return <Redirect to="/" />;
-  }
-
-  // Only mount RoleCheck once Clerk is loaded and the session is established.
-  // This ensures the auth token getter is set before useGetMe fires its first request.
+  if (!isLoaded) return <div className="min-h-[100dvh] flex items-center justify-center"><div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>;
+  if (!isSignedIn) return <Redirect to="/" />;
   return <RoleCheck component={Component} minRole={minRole} />;
 }
-
 function OnboardingPage() {
   const { isLoaded, isSignedIn } = useAuth();
-  if (!isLoaded) {
-    return (
-      <div className="min-h-[100dvh] flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    );
-  }
+  if (!isLoaded) return <div className="min-h-[100dvh] flex items-center justify-center"><div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>;
   if (!isSignedIn) return <Redirect to="/" />;
   return <Onboarding />;
 }
-
-/**
- * Wires Clerk's session token into every customFetch API call via the
- * Authorization: Bearer header. This bypasses the dev-browser-missing
- * cookie issue when the Replit proxy separates the frontend and API ports.
- *
- * Uses useSession() which gives direct access to the active Session object.
- * session.getToken() is the most reliable way to get a fresh JWT in Clerk v5.
- */
 function ClerkAuthTokenProvider() {
   const { session } = useSession();
   const queryClient = useQueryClient();
-
-  // Set synchronously during render so the token is attached BEFORE
-  // react-query fires its first fetch in any child component.
-  if (session) {
-    setAuthTokenGetter(() => session.getToken());
-  } else {
-    setAuthTokenGetter(null);
-  }
-
+  if (session) setAuthTokenGetter(() => session.getToken()); else setAuthTokenGetter(null);
   useEffect(() => {
-    if (session) {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    }
-    return () => {
-      setAuthTokenGetter(null);
-    };
+    if (session) queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    return () => setAuthTokenGetter(null);
   }, [session, queryClient]);
-
   return null;
 }
-
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const queryClient = useQueryClient();
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
-
   useEffect(() => {
     const unsubscribe = addListener(({ user }) => {
       const userId = user?.id ?? null;
-      if (
-        prevUserIdRef.current !== undefined &&
-        prevUserIdRef.current !== userId
-      ) {
-        queryClient.clear();
-      }
+      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) queryClient.clear();
       prevUserIdRef.current = userId;
     });
     return unsubscribe;
   }, [addListener, queryClient]);
-
   return null;
 }
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 0,
-      refetchOnMount: true,
-      refetchOnWindowFocus: true,
-    },
-  },
-});
+const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 0, refetchOnMount: true, refetchOnWindowFocus: true } } });
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
-
   return (
     <ClerkProvider
       publishableKey={clerkPubKey}
@@ -292,22 +158,8 @@ function ClerkProviderWithRoutes() {
       localization={{
         ...ruRU,
         formFieldInputPlaceholder__signUpPassword: "Придумайте пароль",
-        signIn: {
-          ...ruRU.signIn,
-          start: {
-            ...ruRU.signIn?.start,
-            title: "Войти в Luna-Sklad",
-            subtitle: "Введите данные для доступа к системе управления складом",
-          },
-        },
-        signUp: {
-          ...ruRU.signUp,
-          start: {
-            ...ruRU.signUp?.start,
-            title: "Создать аккаунт",
-            subtitle: "Заполните данные для регистрации в Luna-Sklad",
-          },
-        },
+        signIn: { ...ruRU.signIn, start: { ...ruRU.signIn?.start, title: "Войти в Северное сияние", subtitle: "Доступ к системе управления ярмаркой" } },
+        signUp: { ...ruRU.signUp, start: { ...ruRU.signUp?.start, title: "Создать аккаунт", subtitle: "Регистрация в системе «Северное сияние»" } },
       }}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
@@ -337,16 +189,7 @@ function ClerkProviderWithRoutes() {
     </ClerkProvider>
   );
 }
-
 function App() {
-  return (
-    <TooltipProvider>
-      <WouterRouter base={basePath}>
-        <ClerkProviderWithRoutes />
-      </WouterRouter>
-      <Toaster />
-    </TooltipProvider>
-  );
+  return <TooltipProvider><WouterRouter base={basePath}><ClerkProviderWithRoutes /></WouterRouter><Toaster /></TooltipProvider>;
 }
-
 export default App;
