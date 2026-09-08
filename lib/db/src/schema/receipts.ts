@@ -2,10 +2,12 @@ import { pgTable, serial, text, timestamp, integer, numeric, json } from "drizzl
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { itemsTable } from "./items";
+import { locationsTable } from "./locations";
 
 export const receiptsTable = pgTable("receipts", {
   id: serial("id").primaryKey(),
   itemId: integer("item_id").notNull().references(() => itemsTable.id),
+  locationId: integer("location_id").references(() => locationsTable.id, { onDelete: "set null" }),
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
   pricePerUnit: numeric("price_per_unit", { precision: 12, scale: 2 }).notNull(),
   totalCost: numeric("total_cost", { precision: 14, scale: 2 }).notNull(),
