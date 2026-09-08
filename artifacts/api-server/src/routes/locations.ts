@@ -16,7 +16,7 @@ async function requireAdmin(req: Request, res: Response): Promise<boolean> {
 router.get("/locations", requireAuth(), async (_req, res: Response) => {
   let locations = await db.query.locationsTable.findMany({ where: eq(locationsTable.isActive, true), orderBy: [asc(locationsTable.id)] });
   if (locations.length === 0) {
-    await db.insert(locationsTable).values(DEFAULT_LOCATIONS).onConflictDoNothing();
+    await db.insert(locationsTable).values([...DEFAULT_LOCATIONS]).onConflictDoNothing();
     locations = await db.query.locationsTable.findMany({ where: eq(locationsTable.isActive, true), orderBy: [asc(locationsTable.id)] });
   }
   res.json(locations);
@@ -26,10 +26,7 @@ router.patch("/locations/:id", requireAuth(), async (req: Request, res: Response
   if (!(await requireAdmin(req, res))) return;
   const id = Number(req.params.id);
   const { name, isActive } = req.body as { name?: string; isActive?: boolean };
-  const [updated] = await db.update(locationsTable).set({
-    ...(name !== undefined ? { name: name.trim() } : {}),
-    ...(isActive !== undefined ? { isActive } : {}),
-  }).where(eq(locationsTable.id, id)).returning();
+  const [updated] = await db.update(locationsTable).set({ ...(name !== undefined ? { name: name.trim() } : {}), ...(isActive !== undefined ? { isActive } : {}) }).where(eq(locationsTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "Location not found" }); return; }
   res.json(updated);
 });
