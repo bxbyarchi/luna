@@ -6,7 +6,7 @@ import { LayoutDashboard, Package, Tags, ArrowDownToLine, ArrowUpFromLine, Clipb
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS } from "@/lib/roles";
 
-const LOCATIONS = ["Кой Таш", "Площадь", "Азия Молл", "Скай Парк", "Ош"] as const;
+const LOCATIONS = ["Кой Таш", "Площадь", "Азия Молл", "Скай Парк", "Ош", "Лермонтова", "Прохладное"] as const;
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -28,7 +28,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { name: "Настройки", href: "/settings", icon: Settings, roles: ["admin"], testId: "settings" },
   ];
   const closeSidebar = () => setSidebarOpen(false);
-  const displayLocation = user?.role === "admin" ? "Все склады" : LOCATIONS.includes((user as any)?.locationName) ? (user as any).locationName : "Склад не назначен";
+  const assignedLocation = (user as any)?.locationName as string | null | undefined;
+  const displayLocation = user?.role === "admin"
+    ? "Все склады"
+    : assignedLocation && LOCATIONS.includes(assignedLocation as typeof LOCATIONS[number])
+      ? assignedLocation
+      : "Склад не назначен";
+
   return <div className="flex min-h-[100dvh] bg-background">
     {sidebarOpen && <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={closeSidebar} aria-hidden="true" />}
     <aside className={`fixed inset-y-0 left-0 z-40 w-64 flex flex-col bg-sidebar border-r border-sidebar-border text-sidebar-foreground transform transition-transform duration-200 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:relative md:translate-x-0 md:flex`}>
