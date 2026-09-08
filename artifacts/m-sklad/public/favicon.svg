@@ -1,19 +1,15 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="fg" x1="0" y1="0" x2="0" y2="180" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#9B0028"/>
-      <stop offset="100%" stop-color="#5C0016"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B5163A"/><stop offset="0.55" stop-color="#8B1028"/><stop offset="1" stop-color="#5A0718"/>
     </linearGradient>
   </defs>
-  <rect width="180" height="180" rx="38" fill="url(#fg)"/>
-  <text
-    x="90" y="108"
-    text-anchor="middle"
-    dominant-baseline="middle"
-    fill="white"
-    font-family="'Helvetica Neue', Arial, sans-serif"
-    font-size="74"
-    font-weight="800"
-    letter-spacing="-3"
-  >LG</text>
+  <rect width="180" height="180" rx="38" fill="url(#bg)"/>
+  <path d="M0 70C34 45 61 56 88 69C118 83 146 70 180 48V0H0V70Z" fill="#E8FBFF" opacity="0.25"/>
+  <g stroke="#E8FBFF" stroke-width="2.5" stroke-linecap="round" opacity="0.9">
+    <path d="M25 35V61M12 48H38M16 39L34 57M34 39L16 57"/>
+    <path d="M155 30V54M143 42H167M147 34L163 50M163 34L147 50"/>
+  </g>
+  <text x="90" y="105" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="'Helvetica Neue', Arial, sans-serif" font-size="68" font-weight="900" letter-spacing="-5">SS</text>
+  <path d="M58 137H122" stroke="#E8FBFF" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
 </svg>
