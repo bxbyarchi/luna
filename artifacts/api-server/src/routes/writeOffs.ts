@@ -12,9 +12,7 @@ const router: IRouter = Router();
 
 async function resolveLocation(req: Request, requested?: unknown) {
   const scope = await getWarehouseScope(req);
-  const locationId = requested !== undefined && requested !== null && requested !== ""
-    ? Number(requested)
-    : scope.locationId;
+  const locationId = requested !== undefined && requested !== null && requested !== "" ? Number(requested) : scope.locationId;
   if (!Number.isInteger(locationId) || locationId <= 0) return { scope, locationId: null as number | null };
   if (!canAccessLocation(scope, locationId)) return { scope, locationId: null as number | null, forbidden: true };
   if (!(await locationExists(locationId))) return { scope, locationId: null as number | null, invalid: true };
@@ -35,52 +33,35 @@ router.get("/write-offs", requireAuth(), async (req: Request, res: Response) => 
   if (staffId) conditions.push(eq(writeOffsTable.staffId, Number(staffId)));
   if (from) conditions.push(gte(writeOffsTable.createdAt, new Date(String(from))));
   if (to) conditions.push(lte(writeOffsTable.createdAt, new Date(String(to))));
-
   const requestedLocation = locationId ? Number(locationId) : scope.locationId;
   if (scope.role !== "admin") {
-    if (!requestedLocation) { res.status(403).json({ error: "Warehouse is not assigned" }); return; }
+    if (!requestedLocation || !canAccessLocation(scope, requestedLocation)) { res.status(403).json({ error: "Warehouse is not assigned" }); return; }
     conditions.push(eq(writeOffsTable.locationId, requestedLocation));
   } else if (locationId) {
     conditions.push(eq(writeOffsTable.locationId, Number(locationId)));
   }
 
-  const rows = await db
-    .select({
-      id: writeOffsTable.id,
-      itemId: writeOffsTable.itemId,
-      itemName: itemsTable.name,
-      locationId: writeOffsTable.locationId,
-      locationName: locationsTable.name,
-      quantity: writeOffsTable.quantity,
-      reason: writeOffsTable.reason,
-      staffId: writeOffsTable.staffId,
-      staffName: staffTable.name,
-      photoUrl: writeOffsTable.photoUrl,
-      notes: writeOffsTable.notes,
-      totalValue: writeOffsTable.totalValue,
-      createdAt: writeOffsTable.createdAt,
-    })
-    .from(writeOffsTable)
+  const rows = await db.select({
+    id: writeOffsTable.id, itemId: writeOffsTable.itemId, itemName: itemsTable.name,
+    locationId: writeOffsTable.locationId, locationName: locationsTable.name,
+    quantity: writeOffsTable.quantity, reason: writeOffsTable.reason,
+    staffId: writeOffsTable.staffId, staffName: staffTable.name,
+    photoUrl: writeOffsTable.photoUrl, notes: writeOffsTable.notes,
+    totalValue: writeOffsTable.totalValue, createdAt: writeOffsTable.createdAt,
+  }).from(writeOffsTable)
     .leftJoin(itemsTable, eq(writeOffsTable.itemId, itemsTable.id))
     .leftJoin(staffTable, eq(writeOffsTable.staffId, staffTable.id))
     .leftJoin(locationsTable, eq(writeOffsTable.locationId, locationsTable.id))
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(sql`${writeOffsTable.createdAt} DESC`);
-
   res.json(rows);
 });
 
 router.post("/write-offs", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
   const { itemId, quantity, reason, staffId, photoUrl, notes, locationId: requestedLocation } = req.body;
-  if (!itemId || !quantity || !reason) {
-    res.status(400).json({ error: "itemId, quantity, reason required" });
-    return;
-  }
+  if (!itemId || !quantity || !reason) { res.status(400).json({ error: "itemId, quantity, reason required" }); return; }
   const qty = Number(quantity);
-  if (!Number.isFinite(qty) || qty <= 0) {
-    res.status(400).json({ error: "quantity must be a positive number" });
-    return;
-  }
+  if (!Number.isFinite(qty) || qty <= 0) { res.status(400).json({ error: "quantity must be a positive number" }); return; }
 
   const resolved = await resolveLocation(req, requestedLocation);
   if (resolved.forbidden) { res.status(403).json({ error: "No access to this warehouse" }); return; }
@@ -91,48 +72,33 @@ router.post("/write-offs", requireAuth(), requireRole("admin"), async (req: Requ
   if (!item) { res.status(404).json({ error: "Item not found" }); return; }
   const totalValue = Number(item.pricePerUnit) * qty;
 
-  const row = await db.transaction(async (tx) => {
-    const stock = await tx.query.warehouseStockTable.findFirst({
-      where: and(eq(warehouseStockTable.itemId, Number(itemId)), eq(warehouseStockTable.locationId, resolved.locationId!)),
+  let result: { row: typeof writeOffsTable.$inferSelect; currentStock: number };
+  try {
+    result = await db.transaction(async (tx) => {
+      const stock = await tx.query.warehouseStockTable.findFirst({ where: and(eq(warehouseStockTable.itemId, Number(itemId)), eq(warehouseStockTable.locationId, resolved.locationId!)) });
+      const current = Number(stock?.currentStock ?? 0);
+      if (!stock || current < qty) throw new Error("INSUFFICIENT_STOCK");
+      const [created] = await tx.insert(writeOffsTable).values({
+        itemId: Number(itemId), locationId: resolved.locationId!, quantity: String(qty), reason,
+        staffId: staffId ? Number(staffId) : null, photoUrl: photoUrl || null, notes,
+        totalValue: String(totalValue), recordedByClerkId: req.auth?.userId,
+      }).returning();
+      const nextStock = current - qty;
+      await tx.update(warehouseStockTable).set({ currentStock: String(nextStock) }).where(eq(warehouseStockTable.id, stock.id));
+      await syncLegacyTotal(tx, Number(itemId));
+      return { row: created, currentStock: nextStock };
     });
-    const current = Number(stock?.currentStock ?? 0);
-    if (current < qty) throw new Error(`INSUFFICIENT_STOCK:${current}`);
-
-    const [created] = await tx.insert(writeOffsTable).values({
-      itemId: Number(itemId),
-      locationId: resolved.locationId!,
-      quantity: String(qty),
-      reason,
-      staffId: staffId ? Number(staffId) : null,
-      photoUrl: photoUrl || null,
-      notes,
-      totalValue: String(totalValue),
-      recordedByClerkId: req.auth?.userId,
-    }).returning();
-
-    await tx.update(warehouseStockTable).set({
-      currentStock: sql`CAST(${warehouseStockTable.currentStock} AS DECIMAL) - ${qty}`,
-    }).where(eq(warehouseStockTable.id, stock!.id));
-    await syncLegacyTotal(tx, Number(itemId));
-    return created;
-  }).catch((error: any) => {
-    if (String(error?.message).startsWith("INSUFFICIENT_STOCK:")) return null;
+  } catch (error: any) {
+    if (error?.message === "INSUFFICIENT_STOCK") { res.status(400).json({ error: "Insufficient stock in selected warehouse" }); return; }
     throw error;
-  });
+  }
 
-  if (!row) { res.status(400).json({ error: "Insufficient stock in selected warehouse" }); return; }
-
-  const [updated] = await db
-    .select({ currentStock: warehouseStockTable.currentStock, minThreshold: itemsTable.minThreshold, name: itemsTable.name, unit: itemsTable.unit, categoryName: categoriesTable.name, categorySlug: categoriesTable.slug })
-    .from(warehouseStockTable)
-    .leftJoin(itemsTable, eq(warehouseStockTable.itemId, itemsTable.id))
-    .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
-    .where(eq(warehouseStockTable.id, row ? (await db.select({ id: warehouseStockTable.id }).from(warehouseStockTable).where(and(eq(warehouseStockTable.itemId, Number(itemId)), eq(warehouseStockTable.locationId, resolved.locationId!)))).at(0)?.id ?? 0 : 0));
-
-  if (updated?.minThreshold && Number(updated.currentStock) <= Number(updated.minThreshold)) {
+  const [updated] = await db.select({ minThreshold: itemsTable.minThreshold, name: itemsTable.name, unit: itemsTable.unit, categoryName: categoriesTable.name, categorySlug: categoriesTable.slug })
+    .from(itemsTable).leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id)).where(eq(itemsTable.id, Number(itemId)));
+  if (updated?.minThreshold && result.currentStock <= Number(updated.minThreshold)) {
     const isHozka = updated.categoryName?.toLowerCase().includes("хозка") || updated.categorySlug?.toLowerCase().includes("hozka") || updated.categorySlug?.toLowerCase().includes("hoz");
-    if (isHozka) void sendHozkaLowStockAlert(updated.name, Number(updated.currentStock), updated.unit);
-    else void sendLowStockAlert(updated.name, Number(updated.currentStock), Number(updated.minThreshold), updated.unit);
+    if (isHozka) void sendHozkaLowStockAlert(updated.name, result.currentStock, updated.unit);
+    else void sendLowStockAlert(updated.name, result.currentStock, Number(updated.minThreshold), updated.unit);
   }
 
   let staffName: string | null = null;
@@ -141,19 +107,20 @@ router.post("/write-offs", requireAuth(), requireRole("admin"), async (req: Requ
     staffName = staffRow?.name ?? null;
   }
   void sendWriteOffNotification({ itemName: item.name, unit: item.unit, quantity: qty, reason, totalValue, staffName, recordedByName: null });
-
-  await logAudit({ action: "create", entityType: "write_off", entityId: row.id, clerkUserId: req.auth?.userId });
-  res.status(201).json(row);
+  await logAudit({ action: "create", entityType: "write_off", entityId: result.row.id, clerkUserId: req.auth?.userId });
+  res.status(201).json(result.row);
 });
 
 router.get("/write-offs/:id", requireAuth(), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  const [row] = await db
-    .select({ id: writeOffsTable.id, itemId: writeOffsTable.itemId, itemName: itemsTable.name, locationId: writeOffsTable.locationId, locationName: locationsTable.name, quantity: writeOffsTable.quantity, reason: writeOffsTable.reason, staffId: writeOffsTable.staffId, staffName: staffTable.name, photoUrl: writeOffsTable.photoUrl, notes: writeOffsTable.notes, totalValue: writeOffsTable.totalValue, createdAt: writeOffsTable.createdAt })
-    .from(writeOffsTable)
-    .leftJoin(itemsTable, eq(writeOffsTable.itemId, itemsTable.id))
-    .leftJoin(staffTable, eq(writeOffsTable.staffId, staffTable.id))
-    .leftJoin(locationsTable, eq(writeOffsTable.locationId, locationsTable.id))
+  const [row] = await db.select({
+    id: writeOffsTable.id, itemId: writeOffsTable.itemId, itemName: itemsTable.name,
+    locationId: writeOffsTable.locationId, locationName: locationsTable.name,
+    quantity: writeOffsTable.quantity, reason: writeOffsTable.reason, staffId: writeOffsTable.staffId,
+    staffName: staffTable.name, photoUrl: writeOffsTable.photoUrl, notes: writeOffsTable.notes,
+    totalValue: writeOffsTable.totalValue, createdAt: writeOffsTable.createdAt,
+  }).from(writeOffsTable).leftJoin(itemsTable, eq(writeOffsTable.itemId, itemsTable.id))
+    .leftJoin(staffTable, eq(writeOffsTable.staffId, staffTable.id)).leftJoin(locationsTable, eq(writeOffsTable.locationId, locationsTable.id))
     .where(eq(writeOffsTable.id, id));
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   const scope = await getWarehouseScope(req);
@@ -167,12 +134,9 @@ router.patch("/write-offs/:id", requireAuth(), requireRole("manager"), async (re
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
   const scope = await getWarehouseScope(req);
   if (!canAccessLocation(scope, existing.locationId ?? -1)) { res.status(403).json({ error: "Forbidden" }); return; }
-
   const { quantity, reason, staffId, photoUrl, notes } = req.body;
   if (quantity !== undefined && (!Number.isFinite(Number(quantity)) || Number(quantity) <= 0)) { res.status(400).json({ error: "quantity must be a positive number" }); return; }
-  const oldQty = Number(existing.quantity);
-  const newQty = quantity !== undefined ? Number(quantity) : oldQty;
-  const qtyDelta = newQty - oldQty;
+  const oldQty = Number(existing.quantity), newQty = quantity !== undefined ? Number(quantity) : oldQty, qtyDelta = newQty - oldQty;
   const item = await db.query.itemsTable.findFirst({ where: eq(itemsTable.id, existing.itemId) });
   if (!item) { res.status(404).json({ error: "Item not found" }); return; }
   const newTotalValue = Number(item.pricePerUnit) * newQty;
@@ -186,7 +150,11 @@ router.patch("/write-offs/:id", requireAuth(), requireRole("manager"), async (re
       } else if (qtyDelta < 0) {
         await tx.update(warehouseStockTable).set({ currentStock: sql`CAST(${warehouseStockTable.currentStock} AS DECIMAL) + ${Math.abs(qtyDelta)}` }).where(and(eq(warehouseStockTable.itemId, existing.itemId), eq(warehouseStockTable.locationId, existing.locationId!)));
       }
-      const [row] = await tx.update(writeOffsTable).set({ ...(quantity !== undefined && { quantity: String(newQty), totalValue: String(newTotalValue) }), ...(reason !== undefined && { reason }), ...(staffId !== undefined && { staffId: staffId ? Number(staffId) : null }), ...(photoUrl !== undefined && { photoUrl }), ...(notes !== undefined && { notes }) }).where(eq(writeOffsTable.id, id)).returning();
+      const [row] = await tx.update(writeOffsTable).set({
+        ...(quantity !== undefined && { quantity: String(newQty), totalValue: String(newTotalValue) }),
+        ...(reason !== undefined && { reason }), ...(staffId !== undefined && { staffId: staffId ? Number(staffId) : null }),
+        ...(photoUrl !== undefined && { photoUrl }), ...(notes !== undefined && { notes }),
+      }).where(eq(writeOffsTable.id, id)).returning();
       await syncLegacyTotal(tx, existing.itemId);
       return row;
     });
@@ -204,7 +172,6 @@ router.delete("/write-offs/:id", requireAuth(), requireRole("manager"), async (r
   if (!existing) { res.status(404).json({ error: "Not found" }); return; }
   const scope = await getWarehouseScope(req);
   if (!canAccessLocation(scope, existing.locationId ?? -1)) { res.status(403).json({ error: "Forbidden" }); return; }
-
   await db.transaction(async (tx) => {
     await tx.delete(writeOffsTable).where(eq(writeOffsTable.id, id));
     await tx.update(warehouseStockTable).set({ currentStock: sql`CAST(${warehouseStockTable.currentStock} AS DECIMAL) + ${Number(existing.quantity)}` }).where(and(eq(warehouseStockTable.itemId, existing.itemId), eq(warehouseStockTable.locationId, existing.locationId!)));
