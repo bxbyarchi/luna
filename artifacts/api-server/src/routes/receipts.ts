@@ -20,9 +20,8 @@ async function resolveLocationId(req: Request, requested?: unknown): Promise<num
   return first?.id ?? null;
 }
 
-function refreshLegacyStock(tx: typeof db, itemId: number) {
-  return tx.select({ total: sql<string>`COALESCE(SUM(CAST(${warehouseStockTable.currentStock} AS DECIMAL)),0)` })
-    .from(warehouseStockTable).where(eq(warehouseStockTable.itemId, itemId));
+async function refreshLegacyStock(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], itemId: number) {
+  return tx.select({ total: sql<string>`COALESCE(SUM(CAST(${warehouseStockTable.currentStock} AS DECIMAL)),0)` }).from(warehouseStockTable).where(eq(warehouseStockTable.itemId, itemId));
 }
 
 router.get("/receipts", requireAuth(), async (req: Request, res: Response) => {
@@ -35,20 +34,7 @@ router.get("/receipts", requireAuth(), async (req: Request, res: Response) => {
   if (from) conditions.push(gte(receiptsTable.createdAt, new Date(String(from))));
   if (to) conditions.push(lte(receiptsTable.createdAt, new Date(String(to))));
   if (selectedLocation) conditions.push(eq(receiptsTable.locationId, selectedLocation));
-
-  const rows = await db.select({
-    id: receiptsTable.id, itemId: receiptsTable.itemId, itemName: itemsTable.name,
-    locationId: receiptsTable.locationId, locationName: locationsTable.name,
-    quantity: receiptsTable.quantity, pricePerUnit: receiptsTable.pricePerUnit, totalCost: receiptsTable.totalCost,
-    supplier: receiptsTable.supplier, photoUrl: receiptsTable.photoUrl, photoUrls: receiptsTable.photoUrls, notes: receiptsTable.notes,
-    createdAt: receiptsTable.createdAt,
-    recordedByName: sql<string | null>`NULLIF(TRIM(COALESCE(${usersTable.firstName}, '') || ' ' || COALESCE(${usersTable.lastName}, '')), '')`,
-  }).from(receiptsTable)
-    .leftJoin(itemsTable, eq(receiptsTable.itemId, itemsTable.id))
-    .leftJoin(usersTable, eq(receiptsTable.recordedByClerkId, usersTable.clerkUserId))
-    .leftJoin(locationsTable, eq(receiptsTable.locationId, locationsTable.id))
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(sql`${receiptsTable.createdAt} DESC`);
+  const rows = await db.select({ id: receiptsTable.id, itemId: receiptsTable.itemId, itemName: itemsTable.name, locationId: receiptsTable.locationId, locationName: locationsTable.name, quantity: receiptsTable.quantity, pricePerUnit: receiptsTable.pricePerUnit, totalCost: receiptsTable.totalCost, supplier: receiptsTable.supplier, photoUrl: receiptsTable.photoUrl, photoUrls: receiptsTable.photoUrls, notes: receiptsTable.notes, createdAt: receiptsTable.createdAt, recordedByName: sql<string | null>`NULLIF(TRIM(COALESCE(${usersTable.firstName}, '') || ' ' || COALESCE(${usersTable.lastName}, '')), '')` }).from(receiptsTable).leftJoin(itemsTable, eq(receiptsTable.itemId, itemsTable.id)).leftJoin(usersTable, eq(receiptsTable.recordedByClerkId, usersTable.clerkUserId)).leftJoin(locationsTable, eq(receiptsTable.locationId, locationsTable.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(sql`${receiptsTable.createdAt} DESC`);
   res.json(rows);
 });
 
@@ -62,7 +48,6 @@ router.post("/receipts", requireAuth(), requireRole("admin"), async (req: Reques
   const total = qty * price;
   const normalizedPhotoUrls: string[] = Array.isArray(photoUrls) ? photoUrls : (photoUrl ? [photoUrl] : []);
   const primaryPhotoUrl = normalizedPhotoUrls[0] ?? photoUrl ?? null;
-
   const [row] = await db.transaction(async (tx) => {
     const [created] = await tx.insert(receiptsTable).values({ itemId: Number(itemId), locationId: warehouseId, quantity: String(qty), pricePerUnit: String(price), totalCost: String(total), supplier, photoUrl: primaryPhotoUrl, photoUrls: normalizedPhotoUrls, notes, recordedByClerkId: req.auth?.userId }).returning();
     await tx.insert(warehouseStockTable).values({ itemId: Number(itemId), locationId: warehouseId, currentStock: String(qty) }).onConflictDoUpdate({ target: [warehouseStockTable.itemId, warehouseStockTable.locationId], set: { currentStock: sql`CAST(${warehouseStockTable.currentStock} AS DECIMAL) + ${qty}` } });
@@ -70,7 +55,6 @@ router.post("/receipts", requireAuth(), requireRole("admin"), async (req: Reques
     await tx.update(itemsTable).set({ currentStock: legacyTotal }).where(eq(itemsTable.id, Number(itemId)));
     return [created];
   });
-
   const [updated] = await db.select({ currentStock: warehouseStockTable.currentStock, minThreshold: itemsTable.minThreshold, name: itemsTable.name, unit: itemsTable.unit }).from(warehouseStockTable).leftJoin(itemsTable, eq(warehouseStockTable.itemId, itemsTable.id)).where(and(eq(warehouseStockTable.itemId, Number(itemId)), eq(warehouseStockTable.locationId, warehouseId)));
   if (updated?.minThreshold && Number(updated.currentStock) <= Number(updated.minThreshold)) void sendLowStockAlert(updated.name, Number(updated.currentStock), Number(updated.minThreshold), updated.unit);
   await logAudit({ action: "create", entityType: "receipt", entityId: row.id, clerkUserId: req.auth?.userId, details: `Склад: ${warehouseId}` });
@@ -98,9 +82,8 @@ router.patch("/receipts/:id", requireAuth(), requireRole("manager"), async (req:
   const newTotal = newQty * newPrice;
   const normalizedPhotoUrls = photoUrls !== undefined ? (Array.isArray(photoUrls) ? photoUrls : (photoUrl ? [photoUrl] : [])) : undefined;
   const primaryPhotoUrl = normalizedPhotoUrls !== undefined ? (normalizedPhotoUrls[0] ?? null) : (photoUrl !== undefined ? photoUrl : existing.photoUrl);
-
   const updated = await db.transaction(async (tx) => {
-    const [row] = await tx.update(receiptsTable).set({ ...(quantity !== undefined && { quantity: String(newQty) }), ...(pricePerUnit !== undefined && { pricePerUnit: String(newPrice) }), totalCost: String(newTotal), ...(supplier !== undefined && { supplier }), ...(photoUrl !== undefined || photoUrls !== undefined ? { photoUrl: primaryPhotoUrl } : {}), ...(normalizedPhotoUrls !== undefined && { photoUrls: normalizedPhotoUrls }) , ...(notes !== undefined && { notes }) }).where(eq(receiptsTable.id, id)).returning();
+    const [row] = await tx.update(receiptsTable).set({ ...(quantity !== undefined && { quantity: String(newQty) }), ...(pricePerUnit !== undefined && { pricePerUnit: String(newPrice) }), totalCost: String(newTotal), ...(supplier !== undefined && { supplier }), ...(photoUrl !== undefined || photoUrls !== undefined ? { photoUrl: primaryPhotoUrl } : {}), ...(normalizedPhotoUrls !== undefined && { photoUrls: normalizedPhotoUrls }), ...(notes !== undefined && { notes }) }).where(eq(receiptsTable.id, id)).returning();
     if (quantity !== undefined && existing.locationId) {
       const delta = newQty - oldQty;
       await tx.insert(warehouseStockTable).values({ itemId: existing.itemId, locationId: existing.locationId, currentStock: String(delta) }).onConflictDoUpdate({ target: [warehouseStockTable.itemId, warehouseStockTable.locationId], set: { currentStock: sql`CAST(${warehouseStockTable.currentStock} AS DECIMAL) + ${delta}` } });
