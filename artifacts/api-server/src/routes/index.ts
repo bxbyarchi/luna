@@ -14,12 +14,16 @@ import storageRouter from "./storage";
 import rentalsRouter from "./rentals";
 import onboardingRouter from "./onboarding";
 import settingsRouter from "./settings";
+import locationsRouter from "./locations";
+import transfersRouter from "./transfers";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(onboardingRouter);
+router.use(locationsRouter);
+router.use(transfersRouter);
 router.use(categoriesRouter);
 router.use(itemsRouter);
 router.use(receiptsRouter);
