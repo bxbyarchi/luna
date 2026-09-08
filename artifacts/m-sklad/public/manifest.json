@@ -1,11 +1,11 @@
 {
-  "name": "Luna-Sklad — Склад",
-  "short_name": "Luna-Sklad",
-  "description": "Система учёта склада и инвентаря ресторана",
+  "name": "Северное сияние — Ярмарка",
+  "short_name": "Северное сияние",
+  "description": "Система управления ярмаркой «Северное сияние»",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#faf9f9",
-  "theme_color": "#800020",
+  "background_color": "#8b1028",
+  "theme_color": "#8b1028",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -20,6 +20,6 @@
       "type": "image/svg+xml"
     }
   ],
-  "categories": ["business", "productivity"],
+  "categories": ["business", "productivity", "events"],
   "lang": "ru"
 }
