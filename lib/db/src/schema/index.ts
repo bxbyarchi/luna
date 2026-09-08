@@ -8,3 +8,4 @@ export * from "./users";
 export * from "./auditLog";
 export * from "./rentals";
 export * from "./settings";
+export * from "./locations";
