@@ -20,4 +20,6 @@ export const DEFAULT_LOCATIONS = [
   { name: "Азия Молл", code: "ASIA_MALL" },
   { name: "Скай Парк", code: "SKY_PARK" },
   { name: "Ош", code: "OSH" },
+  { name: "Лермонтова", code: "LERMONTOVA" },
+  { name: "Прохладное", code: "PROKHLADNOE" },
 ] as const;
