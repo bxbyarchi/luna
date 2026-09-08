@@ -9,3 +9,5 @@ export * from "./auditLog";
 export * from "./rentals";
 export * from "./settings";
 export * from "./locations";
+export * from "./warehouseStock";
+export * from "./transfers";
