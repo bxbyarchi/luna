@@ -2,10 +2,12 @@ import { pgTable, serial, text, timestamp, integer, numeric } from "drizzle-orm/
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { itemsTable } from "./items";
+import { locationsTable } from "./locations";
 
 export const inventoryAuditsTable = pgTable("inventory_audits", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
+  locationId: integer("location_id").references(() => locationsTable.id, { onDelete: "set null" }),
   status: text("status").notNull().default("draft"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
