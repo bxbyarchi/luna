@@ -1,14 +1,13 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "../lib/requireAuth";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db";
+import { usersTable, locationsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
 interface ClerkUserResponse {
   email_addresses?: Array<{ email_address?: string }>;
   first_name?: string | null;
   last_name?: string | null;
-  public_metadata?: { role?: string };
 }
 
 const router: IRouter = Router();
@@ -38,14 +37,9 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
       .from(usersTable)
       .catch(() => [{ count: 0 }]);
 
-    const isFirstUser = Number(userCount) === 0;
-
-    const validRoles = ["admin", "manager", "accountant", "warehouse"] as const;
-    type AppRole = typeof validRoles[number];
-    const metaRole = clerkUser?.public_metadata?.role;
-    const role: AppRole = validRoles.includes(metaRole as AppRole)
-      ? (metaRole as AppRole)
-      : isFirstUser ? "admin" : "warehouse";
+    // Only the very first account becomes Завхоз. Every subsequent account
+    // starts as a warehouse user and must be assigned by an administrator.
+    const role = Number(userCount) === 0 ? "admin" : "warehouse";
 
     [user] = await db
       .insert(usersTable)
@@ -71,9 +65,16 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
     return;
   }
 
-  // Prevent HTTP-level caching so role changes are immediately visible
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Pragma", "no-cache");
+
+  let locationName: string | null = null;
+  if (user.locationId) {
+    const location = await db.query.locationsTable.findFirst({
+      where: eq(locationsTable.id, user.locationId),
+    });
+    locationName = location?.name ?? null;
+  }
 
   res.json({
     clerkUserId: user.clerkUserId,
@@ -82,6 +83,8 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
     firstName: user.firstName,
     lastName: user.lastName,
     telegramChatId: user.telegramChatId ?? null,
+    locationId: user.locationId ?? null,
+    locationName,
   });
 });
 
