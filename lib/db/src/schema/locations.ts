@@ -15,6 +15,7 @@ export type InsertLocation = z.infer<typeof insertLocationSchema>;
 export type Location = typeof locationsTable.$inferSelect;
 
 export const DEFAULT_LOCATIONS = [
+  { name: "Бишкек — центральный", code: "BISHKEK_CENTRAL" },
   { name: "Кой Таш", code: "KOI_TASH" },
   { name: "Площадь", code: "PLOSHAD" },
   { name: "Азия Молл", code: "ASIA_MALL" },
