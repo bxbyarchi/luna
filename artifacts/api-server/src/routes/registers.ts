@@ -3,15 +3,16 @@ import { requireAuth } from "../lib/requireAuth";
 import { db, registersTable, housesTable, locationsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
-import { requireRole } from "../middleware/rbac";
+import { requireVenueRole } from "../middleware/rbac";
 import { getWarehouseScope } from "../lib/warehouseScope";
+import { isVenueAdmin, canAccessVenueLocation, getRegisterLocationId } from "../lib/venueScope";
 
 const router: IRouter = Router();
 
 router.get("/registers", requireAuth(), async (req: Request, res: Response) => {
   const scope = await getWarehouseScope(req);
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
-  const requestedLocation = scope.role === "admin" && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
+  const requestedLocation = isVenueAdmin(scope.role) && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
 
   const conditions = [];
   if (requestedLocation) conditions.push(eq(housesTable.locationId, requestedLocation));
@@ -36,19 +37,27 @@ router.get("/registers", requireAuth(), async (req: Request, res: Response) => {
   res.json(rows);
 });
 
-router.post("/registers", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
+router.post("/registers", requireAuth(), requireVenueRole("location_admin"), async (req: Request, res: Response) => {
+  const scope = await getWarehouseScope(req);
+  if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const { name, houseId, isActive } = req.body;
   if (!name) { res.status(400).json({ error: "name required" }); return; }
   const hId = Number(houseId);
   const house = hId ? await db.query.housesTable.findFirst({ where: eq(housesTable.id, hId) }) : null;
   if (!house) { res.status(400).json({ error: "Некорректный домик" }); return; }
+  if (!canAccessVenueLocation(scope, house.locationId)) { res.status(403).json({ error: "Нет доступа к этой площадке" }); return; }
   const [row] = await db.insert(registersTable).values({ name, houseId: hId, isActive: isActive ?? true }).returning();
   await logAudit({ action: "create", entityType: "register", entityId: row.id, clerkUserId: req.auth?.userId });
   res.status(201).json(row);
 });
 
-router.patch("/registers/:id", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
+router.patch("/registers/:id", requireAuth(), requireVenueRole("location_admin"), async (req: Request, res: Response) => {
+  const scope = await getWarehouseScope(req);
+  if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const id = Number(req.params.id);
+  const locationId = await getRegisterLocationId(id);
+  if (!canAccessVenueLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа к этой кассе" }); return; }
+
   const { name, isActive } = req.body;
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
@@ -60,8 +69,13 @@ router.patch("/registers/:id", requireAuth(), requireRole("admin"), async (req: 
   res.json(row);
 });
 
-router.delete("/registers/:id", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
+router.delete("/registers/:id", requireAuth(), requireVenueRole("location_admin"), async (req: Request, res: Response) => {
+  const scope = await getWarehouseScope(req);
+  if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const id = Number(req.params.id);
+  const locationId = await getRegisterLocationId(id);
+  if (!canAccessVenueLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа к этой кассе" }); return; }
+
   const [row] = await db.delete(registersTable).where(eq(registersTable.id, id)).returning();
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   await logAudit({ action: "delete", entityType: "register", entityId: id, clerkUserId: req.auth?.userId });

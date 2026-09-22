@@ -11,37 +11,40 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { data: user } = useGetMe();
   const { signOut } = useClerk();
-  const navigation = [
+  const isVenueOnly = user?.role === "location_admin" || user?.role === "cashier";
+  const navigation = isVenueOnly ? [] : [
     { name: "Аналитика", href: "/dashboard", icon: LayoutDashboard, testId: "dashboard" },
     { name: "Склад", href: "/items", icon: Package, testId: "items" },
     { name: "Перемещения", href: "/transfers", icon: Truck, testId: "transfers" },
-    { name: "Категории", href: "/categories", icon: Tags, roles: ["admin", "manager"], testId: "categories" },
+    { name: "Категории", href: "/categories", icon: Tags, roles: ["super_admin", "warehouse_chief", "manager"], testId: "categories" },
     { name: "Поступления", href: "/receipts", icon: ArrowDownToLine, testId: "receipts" },
-    { name: "Списания", href: "/write-offs", icon: ArrowUpFromLine, roles: ["admin", "manager", "accountant"], testId: "write-offs" },
+    { name: "Списания", href: "/write-offs", icon: ArrowUpFromLine, roles: ["super_admin", "warehouse_chief", "manager", "accountant"], testId: "write-offs" },
     { name: "Инвентаризация", href: "/inventory-audits", icon: ClipboardCheck, testId: "inventory-audits" },
     { name: "Аренда", href: "/rentals", icon: KeyRound, testId: "rentals" },
-    { name: "Сотрудники", href: "/staff", icon: Users, roles: ["admin", "manager"], testId: "staff" },
-    { name: "Отчёты", href: "/reports", icon: FileBarChart, roles: ["admin"], testId: "reports" },
-    { name: "Журнал аудита", href: "/audit-log", icon: History, roles: ["admin"], testId: "audit-log" },
-    { name: "Настройки", href: "/settings", icon: Settings, roles: ["admin"], testId: "settings" },
+    { name: "Сотрудники", href: "/staff", icon: Users, roles: ["super_admin", "warehouse_chief", "manager"], testId: "staff" },
+    { name: "Отчёты", href: "/reports", icon: FileBarChart, roles: ["super_admin", "warehouse_chief"], testId: "reports" },
+    { name: "Журнал аудита", href: "/audit-log", icon: History, roles: ["super_admin"], testId: "audit-log" },
   ];
   const venueNavigation = [
-    { name: "Домики", href: "/houses", icon: Home, roles: ["admin", "manager"], testId: "houses" },
-    { name: "Кассы", href: "/registers", icon: Landmark, roles: ["admin", "manager"], testId: "registers" },
-    { name: "Смены", href: "/shifts", icon: Unlock, testId: "shifts" },
-    { name: "Аналитика касс", href: "/kassa-dashboard", icon: PieChart, roles: ["admin", "manager"], testId: "kassa-dashboard" },
+    { name: "Домики", href: "/houses", icon: Home, roles: ["super_admin", "location_admin"], testId: "houses" },
+    { name: "Кассы", href: "/registers", icon: Landmark, roles: ["super_admin", "location_admin"], testId: "registers" },
+    { name: "Смены", href: "/shifts", icon: Unlock, roles: ["super_admin", "location_admin", "cashier"], testId: "shifts" },
+    { name: "Аналитика касс", href: "/kassa-dashboard", icon: PieChart, roles: ["super_admin", "location_admin"], testId: "kassa-dashboard" },
   ];
+  const settingsItem = { name: "Настройки", href: "/settings", icon: Settings, testId: "settings" };
   const closeSidebar = () => setSidebarOpen(false);
   const assignedLocation = user?.locationName;
-  const displayLocation = user?.role === "admin"
+  const displayLocation = user?.role === "super_admin" || user?.role === "warehouse_chief"
     ? "Все склады"
+    : user?.role === "location_admin" || user?.role === "cashier"
+    ? (assignedLocation ?? "Площадка не назначена")
     : assignedLocation ?? "Склад не назначен";
 
   return <div className="flex min-h-[100dvh] bg-background">
     {sidebarOpen && <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={closeSidebar} aria-hidden="true" />}
     <aside className={`fixed inset-y-0 left-0 z-40 w-64 flex flex-col bg-sidebar border-r border-sidebar-border text-sidebar-foreground transform transition-transform duration-200 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} md:relative md:translate-x-0 md:flex`}>
       <div className="p-5 flex items-center justify-between"><div className="flex items-center gap-3 min-w-0"><img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Северное сияние" className="h-9 w-9 rounded-xl" /><div className="min-w-0"><div className="text-base font-bold tracking-tight truncate">Северное сияние</div><div className="text-[10px] uppercase tracking-[0.18em] text-sidebar-foreground/50">Ярмарка</div></div></div><button className="md:hidden p-1" onClick={closeSidebar} aria-label="Закрыть меню"><X className="h-5 w-5" /></button></div>
-      <div className="mx-3 mb-4 rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-3"><div className="flex items-center gap-2 text-xs font-semibold text-sidebar-foreground/70"><MapPin className="h-3.5 w-3.5" />Склад</div><div className="mt-2 text-sm font-semibold">{displayLocation}</div><div className="mt-2 flex items-center gap-1.5 text-[10px] text-sidebar-foreground/45"><Snowflake className="h-3 w-3" />Зимняя ярмарка</div></div>
+      <div className="mx-3 mb-4 rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-3"><div className="flex items-center gap-2 text-xs font-semibold text-sidebar-foreground/70"><MapPin className="h-3.5 w-3.5" />{isVenueOnly ? "Площадка" : "Склад"}</div><div className="mt-2 text-sm font-semibold">{displayLocation}</div><div className="mt-2 flex items-center gap-1.5 text-[10px] text-sidebar-foreground/45"><Snowflake className="h-3 w-3" />Зимняя ярмарка</div></div>
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto pb-4">
         {navigation.map((item) => { if (item.roles && user?.role && !item.roles.includes(user.role)) return null; const isActive = location === item.href; return <Link key={item.testId} href={item.href}><div className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md cursor-pointer transition-colors ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"}`} data-testid={`nav-${item.testId}`} onClick={closeSidebar}><item.icon className="mr-3 h-5 w-5 flex-shrink-0" />{item.name}</div></Link>; })}
         {venueNavigation.some((item) => !item.roles || (user?.role && item.roles.includes(user.role))) && (
@@ -50,6 +53,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {venueNavigation.map((item) => { if (item.roles && user?.role && !item.roles.includes(user.role)) return null; const isActive = location === item.href; return <Link key={item.testId} href={item.href}><div className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md cursor-pointer transition-colors ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"}`} data-testid={`nav-${item.testId}`} onClick={closeSidebar}><item.icon className="mr-3 h-5 w-5 flex-shrink-0" />{item.name}</div></Link>; })}
           </div>
         )}
+        <div className="pt-3 mt-3 border-t border-sidebar-border/60">
+          {(() => { const isActive = location === settingsItem.href; return <Link key={settingsItem.testId} href={settingsItem.href}><div className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md cursor-pointer transition-colors ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"}`} data-testid={`nav-${settingsItem.testId}`} onClick={closeSidebar}><settingsItem.icon className="mr-3 h-5 w-5 flex-shrink-0" />{settingsItem.name}</div></Link>; })()}
+        </div>
       </nav>
       <div className="p-4 border-t border-sidebar-border"><div className="flex items-center justify-between gap-2"><div className="text-sm min-w-0"><p className="font-medium truncate">{user?.firstName} {user?.lastName}</p><p className="text-sidebar-foreground/60 text-xs">{user?.role ? (ROLE_LABELS[user.role] ?? user.role) : ""}</p></div><Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent shrink-0" onClick={() => signOut(() => setLocation("/"))}><LogOut className="h-4 w-4" /></Button></div></div>
     </aside>

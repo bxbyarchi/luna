@@ -541,6 +541,126 @@ paths:
               schema:
                 $ref: "#/components/schemas/KassaAnalyticsSummary"
 
+  /products:
+    get:
+      operationId: listProducts
+      tags: [venue]
+      summary: List sellable products (menu) of a house, grouped for the POS grid
+      parameters:
+        - name: houseId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Products list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: createProduct
+      tags: [venue]
+      summary: Add a product to a house's menu (location_admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /products/{id}:
+    patch:
+      operationId: updateProduct
+      tags: [venue]
+      summary: Update a product (location_admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    delete:
+      operationId: deleteProduct
+      tags: [venue]
+      summary: Delete a product (location_admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /shifts/{id}/cash-movements:
+    get:
+      operationId: listCashMovements
+      tags: [kassa]
+      summary: List инкассация (cash collection/deposit) events for a shift
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cash movements list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CashMovement"
+    post:
+      operationId: createCashMovement
+      tags: [kassa]
+      summary: Record a mid-shift cash collection or deposit (инкассация)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCashMovementBody"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CashMovement"
+
   /items:
     get:
       operationId: listItems
@@ -1353,7 +1473,7 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, manager, accountant, warehouse]
+          enum: [super_admin, warehouse_chief, manager, accountant, warehouse, location_admin, cashier]
         firstName:
           type: ["string", "null"]
         lastName:
@@ -1886,6 +2006,10 @@ components:
           type: string
         totalReturns:
           type: string
+        totalCollected:
+          type: string
+        totalDeposited:
+          type: string
         notes:
           type: ["string", "null"]
         openedAt:
@@ -1903,6 +2027,8 @@ components:
         - totalSalesCash
         - totalSalesCard
         - totalReturns
+        - totalCollected
+        - totalDeposited
         - openedAt
 
     ShiftListItem:
@@ -1912,6 +2038,8 @@ components:
           properties:
             registerName:
               type: string
+            houseId:
+              type: integer
             houseName:
               type: string
             locationId:
@@ -1942,9 +2070,112 @@ components:
       required:
         - closingCashCounted
 
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        houseId:
+          type: integer
+        category:
+          type: string
+        name:
+          type: string
+        price:
+          type: string
+        isActive:
+          type: boolean
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - houseId
+        - category
+        - name
+        - price
+        - isActive
+        - sortOrder
+        - createdAt
+
+    CreateProductBody:
+      type: object
+      properties:
+        houseId:
+          type: integer
+        category:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        sortOrder:
+          type: integer
+      required:
+        - houseId
+        - category
+        - name
+        - price
+
+    UpdateProductBody:
+      type: object
+      properties:
+        category:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+        isActive:
+          type: boolean
+        sortOrder:
+          type: integer
+
+    CashMovement:
+      type: object
+      properties:
+        id:
+          type: integer
+        shiftId:
+          type: integer
+        type:
+          type: string
+          enum: [collection, deposit]
+        amount:
+          type: string
+        note:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - shiftId
+        - type
+        - amount
+        - createdAt
+
+    CreateCashMovementBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [collection, deposit]
+        amount:
+          type: number
+        note:
+          type: string
+      required:
+        - type
+        - amount
+
     SaleItemInput:
       type: object
       properties:
+        productId:
+          type: integer
         name:
           type: string
         quantity:
@@ -1964,6 +2195,10 @@ components:
         paymentMethod:
           type: string
           enum: [cash, card]
+        discountPercent:
+          type: number
+        discountReason:
+          type: string
         items:
           type: array
           items:
@@ -1981,6 +2216,14 @@ components:
           type: integer
         registerId:
           type: integer
+        subtotalAmount:
+          type: string
+        discountPercent:
+          type: string
+        discountAmount:
+          type: string
+        discountReason:
+          type: ["string", "null"]
         totalAmount:
           type: string
         paymentMethod:
@@ -1996,6 +2239,9 @@ components:
         - id
         - shiftId
         - registerId
+        - subtotalAmount
+        - discountPercent
+        - discountAmount
         - totalAmount
         - paymentMethod
         - status
@@ -2020,6 +2266,8 @@ components:
           type: integer
         saleId:
           type: integer
+        productId:
+          type: ["integer", "null"]
         name:
           type: string
         quantity:

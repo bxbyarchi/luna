@@ -71,7 +71,7 @@ export default function Rentals() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="heading-rentals">Аренда</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Учёт выданных в аренду позиций.</p>
         </div>
-        {canDo("admin") && (
+        {canDo("warehouse_chief") && (
           <Button onClick={() => setShowCreate(true)} data-testid="btn-create-rental">
             <Plus className="h-4 w-4 mr-2" /> Новая аренда
           </Button>
@@ -148,7 +148,7 @@ export default function Rentals() {
                       {r.notes && <p className="text-xs text-muted-foreground mt-1 italic">{r.notes}</p>}
                     </div>
                   </div>
-                  {r.status === "active" && canDo("admin") && (
+                  {r.status === "active" && canDo("warehouse_chief") && (
                     <Button
                       size="sm"
                       variant="outline"

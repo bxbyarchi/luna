@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 
 const statusLabels: Record<string, string> = { pending: "Ожидает приёмки", accepted: "Принято", rejected: "Отклонено", cancelled: "Отменено" };
+const isWarehouseAdmin = (role: unknown) => role === "super_admin" || role === "warehouse_chief";
 
 export default function Transfers() {
   const queryClient = useQueryClient();
@@ -28,8 +29,8 @@ export default function Transfers() {
   const { data: transfers = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/transfers"], queryFn: () => customFetch("/api/transfers") });
 
   useEffect(() => {
-    if (user?.role !== "admin" && user?.locationId) setFrom(String(user.locationId));
-    if (user?.role === "admin" && !from && locations.length) setFrom(String(locations[0].id));
+    if (!isWarehouseAdmin(user?.role) && user?.locationId) setFrom(String(user.locationId));
+    if (isWarehouseAdmin(user?.role) && !from && locations.length) setFrom(String(locations[0].id));
   }, [user, locations, from]);
 
   useEffect(() => { setItemId(""); setQuantity(""); }, [from]);
@@ -46,12 +47,12 @@ export default function Transfers() {
     setFormOpen(false); setTo(""); setItemId(""); setQuantity(""); setNote("");
   }
   const locationName = (id: number) => locations.find((x) => x.id === id)?.name ?? `Склад #${id}`;
-  const canAccept = (t: any) => t.status === "pending" && (user?.role === "admin" || user?.locationId === t.toLocationId);
+  const canAccept = (t: any) => t.status === "pending" && (isWarehouseAdmin(user?.role) || user?.locationId === t.toLocationId);
 
   return <div className="space-y-6">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-bold tracking-tight">Перемещения</h1><p className="text-muted-foreground">Передача товара между складами «Северного сияния»</p></div><Button onClick={() => setFormOpen((v) => !v)}><Plus className="mr-2 h-4 w-4" />Создать перемещение</Button></div>
     {formOpen && <Card><CardHeader><CardTitle>Новое перемещение</CardTitle></CardHeader><CardContent className="grid gap-4 md:grid-cols-2">
-      <div className="space-y-2"><Label>Склад отправитель</Label><Select value={from} onValueChange={setFrom} disabled={user?.role !== "admin"}><SelectTrigger><SelectValue placeholder="Выберите склад" /></SelectTrigger><SelectContent>{locations.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}</SelectContent></Select></div>
+      <div className="space-y-2"><Label>Склад отправитель</Label><Select value={from} onValueChange={setFrom} disabled={!isWarehouseAdmin(user?.role)}><SelectTrigger><SelectValue placeholder="Выберите склад" /></SelectTrigger><SelectContent>{locations.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}</SelectContent></Select></div>
       <div className="space-y-2"><Label>Склад получатель</Label><Select value={to} onValueChange={setTo}><SelectTrigger><SelectValue placeholder="Выберите склад" /></SelectTrigger><SelectContent>{locations.filter((l) => String(l.id) !== from).map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}</SelectContent></Select></div>
       <div className="space-y-2"><Label>Товар</Label><Select value={itemId} onValueChange={setItemId}><SelectTrigger><SelectValue placeholder="Выберите товар" /></SelectTrigger><SelectContent>{items.map((i) => <SelectItem key={i.id} value={String(i.id)}>{i.name} ({i.currentStock} {i.unit})</SelectItem>)}</SelectContent></Select></div>
       <div className="space-y-2"><Label>Количество</Label><Input type="number" min="0.001" step="0.001" max={itemId ? Number(items.find((i) => String(i.id) === itemId)?.currentStock ?? 0) : undefined} value={quantity} onChange={(e) => setQuantity(e.target.value)} /></div>

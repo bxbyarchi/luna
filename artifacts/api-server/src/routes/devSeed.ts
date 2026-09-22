@@ -2,10 +2,10 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "../lib/requireAuth";
 import {
   db, locationsTable, DEFAULT_LOCATIONS, categoriesTable, itemsTable, warehouseStockTable,
-  staffTable, housesTable, registersTable, shiftsTable, salesTable, saleItemsTable, returnsTable,
+  staffTable, housesTable, registersTable, shiftsTable, salesTable, saleItemsTable, returnsTable, productsTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
-import { requireRole } from "../middleware/rbac";
+import { requireSuperAdmin } from "../middleware/rbac";
 
 const router: IRouter = Router();
 
@@ -45,8 +45,8 @@ const HOUSE_NAMES = Object.keys(HOUSE_MENU);
 function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min: number, max: number): number { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
-router.post("/admin/seed-demo-data", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
-  const summary = { locations: 0, categories: 0, items: 0, houses: 0, registers: 0, staff: 0, shifts: 0, sales: 0, returns: 0 };
+router.post("/admin/seed-demo-data", requireAuth(), requireSuperAdmin(), async (req: Request, res: Response) => {
+  const summary = { locations: 0, categories: 0, items: 0, houses: 0, registers: 0, products: 0, staff: 0, shifts: 0, sales: 0, returns: 0 };
 
   await db.insert(locationsTable).values([...DEFAULT_LOCATIONS]).onConflictDoNothing();
   const allLocations = await db.query.locationsTable.findMany();
@@ -103,10 +103,18 @@ router.post("/admin/seed-demo-data", requireAuth(), requireRole("admin"), async 
         summary.registers++;
       }
 
+      const menuItems = HOUSE_MENU[houseName];
+      for (let i = 0; i < menuItems.length; i++) {
+        const existingProduct = await db.query.productsTable.findFirst({ where: and(eq(productsTable.houseId, house.id), eq(productsTable.name, menuItems[i].name)) });
+        if (existingProduct) continue;
+        await db.insert(productsTable).values({ houseId: house.id, category: "Меню", name: menuItems[i].name, price: String(menuItems[i].price), sortOrder: i });
+        summary.products++;
+      }
+
       const hasShift = await db.query.shiftsTable.findFirst({ where: eq(shiftsTable.registerId, register.id) });
       if (hasShift) continue;
 
-      const menu = HOUSE_MENU[houseName];
+      const menu = menuItems;
       const openingCash = randInt(500, 1500);
       const [shift] = await db.insert(shiftsTable).values({
         registerId: register.id,
@@ -130,7 +138,7 @@ router.post("/admin/seed-demo-data", requireAuth(), requireRole("admin"), async 
         });
         const totalAmount = lines.reduce((sum, l) => sum + l.quantity * l.pricePerUnit, 0);
         const [sale] = await db.insert(salesTable).values({
-          shiftId: shift.id, registerId: register.id, totalAmount: String(totalAmount), paymentMethod: method,
+          shiftId: shift.id, registerId: register.id, subtotalAmount: String(totalAmount), totalAmount: String(totalAmount), paymentMethod: method,
         }).returning();
         summary.sales++;
         const insertedItems = await db.insert(saleItemsTable).values(lines.map((l) => ({

@@ -6,17 +6,17 @@ import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-async function requireAdmin(req: Request, res: Response): Promise<boolean> {
+async function requireSuperAdmin(req: Request, res: Response): Promise<boolean> {
   const clerkUserId = req.auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return false; }
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-  if (!user || user.role !== "admin") { res.status(403).json({ error: "Forbidden" }); return false; }
+  if (!user || user.role !== "super_admin") { res.status(403).json({ error: "Forbidden" }); return false; }
   return true;
 }
 
-// Завхоз назначает сотруднику конкретный склад. Пустой locationId снимает назначение.
+// Супер-админ назначает сотруднику конкретный склад. Пустой locationId снимает назначение.
 router.patch("/admin/users/:id/location", requireAuth(), async (req: Request, res: Response) => {
-  if (!(await requireAdmin(req, res))) return;
+  if (!(await requireSuperAdmin(req, res))) return;
 
   const id = Number(req.params.id);
   const rawLocationId = req.body?.locationId;

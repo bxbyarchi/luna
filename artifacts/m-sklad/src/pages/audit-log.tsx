@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useListAuditLog, getListAuditLogQueryKey } from "@workspace/api-client-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import AccessDenied from "@/components/AccessDenied";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -34,12 +35,16 @@ const PAGE_SIZE = 50;
 
 export default function AuditLog() {
   const [page, setPage] = useState(0);
-  const { canDo } = useCurrentUser();
+  const { isSuperAdmin, isLoading: roleLoading } = useCurrentUser();
 
   const { data, isLoading } = useListAuditLog(
     { limit: PAGE_SIZE, offset: page * PAGE_SIZE },
-    { query: { queryKey: getListAuditLogQueryKey({ limit: PAGE_SIZE, offset: page * PAGE_SIZE }), enabled: canDo("admin") } }
+    { query: { queryKey: getListAuditLogQueryKey({ limit: PAGE_SIZE, offset: page * PAGE_SIZE }), enabled: isSuperAdmin } }
   );
+
+  if (!roleLoading && !isSuperAdmin) {
+    return <AccessDenied />;
+  }
 
   const total = data?.total ?? 0;
   const rows = data?.rows ?? [];

@@ -2,10 +2,12 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "../lib/requireAuth";
 import { db } from "@workspace/db";
 import { appSettingsTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+const ALL_ROLES = ["super_admin", "warehouse_chief", "manager", "accountant", "warehouse", "location_admin", "cashier"];
 
 async function getOrCreateSettings() {
   let settings = await db.query.appSettingsTable.findFirst();
@@ -15,12 +17,28 @@ async function getOrCreateSettings() {
   return settings!;
 }
 
-async function requireAdmin(req: Request, res: Response): Promise<boolean> {
+async function requireSuperAdmin(req: Request, res: Response): Promise<boolean> {
   const clerkUserId = req.auth?.userId;
   if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return false; }
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-  if (!user || user.role !== "admin") { res.status(403).json({ error: "Forbidden" }); return false; }
+  if (!user || user.role !== "super_admin") { res.status(403).json({ error: "Forbidden" }); return false; }
   return true;
+}
+
+/**
+ * Delegated user management: super_admin manages anyone; location_admin may
+ * only manage cashier accounts at their own location — a lighter, scoped
+ * stand-in for a real invite flow.
+ */
+async function requireUserManager(req: Request, res: Response): Promise<{ id: number; role: string; locationId: number | null } | null> {
+  const clerkUserId = req.auth?.userId;
+  if (!clerkUserId) { res.status(401).json({ error: "Unauthorized" }); return null; }
+  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  if (!user || (user.role !== "super_admin" && user.role !== "location_admin")) {
+    res.status(403).json({ error: "Forbidden" });
+    return null;
+  }
+  return user;
 }
 
 // ─── Org settings ───────────────────────────────────────────────────────────
@@ -31,7 +49,7 @@ router.get("/settings", requireAuth(), async (_req: Request, res: Response) => {
 });
 
 router.put("/settings", requireAuth(), async (req: Request, res: Response) => {
-  if (!(await requireAdmin(req, res))) return;
+  if (!(await requireSuperAdmin(req, res))) return;
   const { orgName, currency, timezone } = req.body as { orgName?: string; currency?: string; timezone?: string };
   const settings = await getOrCreateSettings();
   const [updated] = await db
@@ -49,21 +67,29 @@ router.put("/settings", requireAuth(), async (req: Request, res: Response) => {
 // ─── User management ─────────────────────────────────────────────────────────
 
 router.get("/admin/users", requireAuth(), async (req: Request, res: Response) => {
-  if (!(await requireAdmin(req, res))) return;
-  const users = await db.query.usersTable.findMany({ orderBy: (u, { asc }) => [asc(u.createdAt)] });
+  const manager = await requireUserManager(req, res);
+  if (!manager) return;
+  const users = manager.role === "super_admin"
+    ? await db.query.usersTable.findMany({ orderBy: (u, { asc }) => [asc(u.createdAt)] })
+    : await db.query.usersTable.findMany({
+        where: and(eq(usersTable.role, "cashier"), eq(usersTable.locationId, manager.locationId ?? -1)),
+        orderBy: (u, { asc }) => [asc(u.createdAt)],
+      });
   res.json(users);
 });
 
 /** Create a Clerk user + insert into usersTable */
 router.post("/admin/users", requireAuth(), async (req: Request, res: Response) => {
-  if (!(await requireAdmin(req, res))) return;
+  const manager = await requireUserManager(req, res);
+  if (!manager) return;
 
-  const { firstName, lastName, email, password, role } = req.body as {
+  const { firstName, lastName, email, password, role, locationId } = req.body as {
     firstName?: string;
     lastName?: string;
     email?: string;
     password?: string;
     role?: string;
+    locationId?: number | null;
   };
 
   if (!email || !password) {
@@ -71,8 +97,18 @@ router.post("/admin/users", requireAuth(), async (req: Request, res: Response) =
     return;
   }
 
-  const validRoles = ["admin", "manager", "accountant", "warehouse"];
-  const assignedRole = role && validRoles.includes(role) ? role : "warehouse";
+  let assignedRole: string;
+  let assignedLocationId: number | null;
+  if (manager.role === "super_admin") {
+    assignedRole = role && ALL_ROLES.includes(role) ? role : "warehouse";
+    assignedLocationId = locationId ?? null;
+  } else {
+    // location_admin may only mint cashier accounts, scoped to their own location.
+    if (role && role !== "cashier") { res.status(403).json({ error: "Вы можете создавать только кассиров" }); return; }
+    assignedRole = "cashier";
+    assignedLocationId = manager.locationId;
+    if (!assignedLocationId) { res.status(400).json({ error: "Вам не назначена площадка" }); return; }
+  }
 
   const clerkSecretKey = process.env.CLERK_SECRET_KEY;
   if (!clerkSecretKey) {
@@ -113,12 +149,13 @@ router.post("/admin/users", requireAuth(), async (req: Request, res: Response) =
     const existing = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
     let dbUser;
     if (existing) {
-      [dbUser] = await db.update(usersTable).set({ role: assignedRole, email: resolvedEmail, firstName: firstName ?? null, lastName: lastName ?? null }).where(eq(usersTable.clerkUserId, clerkUserId)).returning();
+      [dbUser] = await db.update(usersTable).set({ role: assignedRole, locationId: assignedLocationId, email: resolvedEmail, firstName: firstName ?? null, lastName: lastName ?? null }).where(eq(usersTable.clerkUserId, clerkUserId)).returning();
     } else {
       [dbUser] = await db.insert(usersTable).values({
         clerkUserId,
         email: resolvedEmail,
         role: assignedRole,
+        locationId: assignedLocationId,
         firstName: firstName ?? null,
         lastName: lastName ?? null,
       }).returning();
@@ -133,14 +170,18 @@ router.post("/admin/users", requireAuth(), async (req: Request, res: Response) =
 
 /** Change user role */
 router.patch("/admin/users/:id/role", requireAuth(), async (req: Request, res: Response) => {
-  if (!(await requireAdmin(req, res))) return;
+  const manager = await requireUserManager(req, res);
+  if (!manager) return;
   const id = Number(req.params.id);
   const { role } = req.body as { role?: string };
-  const validRoles = ["admin", "manager", "accountant", "warehouse"];
-  if (!role || !validRoles.includes(role)) {
-    res.status(400).json({ error: "Invalid role" });
-    return;
+  if (!role || !ALL_ROLES.includes(role)) { res.status(400).json({ error: "Invalid role" }); return; }
+
+  if (manager.role !== "super_admin") {
+    const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
+    if (!target || target.role !== "cashier" || target.locationId !== manager.locationId) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (role !== "cashier") { res.status(403).json({ error: "Вы можете назначать только роль кассира" }); return; }
   }
+
   const [updated] = await db
     .update(usersTable)
     .set({ role })
@@ -152,7 +193,8 @@ router.patch("/admin/users/:id/role", requireAuth(), async (req: Request, res: R
 
 /** Delete user from DB (also removes from Clerk if possible) */
 router.delete("/admin/users/:id", requireAuth(), async (req: Request, res: Response) => {
-  if (!(await requireAdmin(req, res))) return;
+  const manager = await requireUserManager(req, res);
+  if (!manager) return;
 
   const requestingClerkId = req.auth?.userId;
   const id = Number(req.params.id);
@@ -163,6 +205,11 @@ router.delete("/admin/users/:id", requireAuth(), async (req: Request, res: Respo
   // Prevent self-deletion
   if (target.clerkUserId === requestingClerkId) {
     res.status(400).json({ error: "Нельзя удалить свой собственный аккаунт" });
+    return;
+  }
+
+  if (manager.role !== "super_admin" && (target.role !== "cashier" || target.locationId !== manager.locationId)) {
+    res.status(403).json({ error: "Forbidden" });
     return;
   }
 

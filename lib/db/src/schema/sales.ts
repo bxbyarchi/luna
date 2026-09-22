@@ -3,6 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { shiftsTable } from "./shifts";
 import { registersTable } from "./registers";
+import { productsTable } from "./products";
 
 export const paymentMethods = ["cash", "card"] as const;
 export const saleStatus = ["completed", "returned", "partially_returned"] as const;
@@ -11,6 +12,10 @@ export const salesTable = pgTable("sales", {
   id: serial("id").primaryKey(),
   shiftId: integer("shift_id").notNull().references(() => shiftsTable.id),
   registerId: integer("register_id").notNull().references(() => registersTable.id),
+  subtotalAmount: numeric("subtotal_amount", { precision: 12, scale: 2 }).notNull(),
+  discountPercent: numeric("discount_percent", { precision: 5, scale: 2 }).notNull().default("0"),
+  discountAmount: numeric("discount_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  discountReason: text("discount_reason"),
   totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
   paymentMethod: text("payment_method").notNull().default("cash"),
   status: text("status").notNull().default("completed"),
@@ -25,6 +30,7 @@ export type Sale = typeof salesTable.$inferSelect;
 export const saleItemsTable = pgTable("sale_items", {
   id: serial("id").primaryKey(),
   saleId: integer("sale_id").notNull().references(() => salesTable.id),
+  productId: integer("product_id").references(() => productsTable.id),
   name: text("name").notNull(),
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
   pricePerUnit: numeric("price_per_unit", { precision: 12, scale: 2 }).notNull(),

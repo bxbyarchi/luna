@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSearch } from "wouter";
+import { useSearch, useLocation as useWouterLocation } from "wouter";
 import {
   useListRegisters, useCreateRegister, useUpdateRegister, useDeleteRegister,
   useListHouses, useListLocations, getListRegistersQueryKey,
@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Edit, Trash2, X, Landmark } from "lucide-react";
+import { Plus, Edit, Trash2, X, Landmark, Unlock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -32,8 +32,10 @@ type RegisterRow = {
 };
 
 export default function Registers() {
-  const { canDo } = useCurrentUser();
-  const isAdmin = canDo("admin");
+  const { canDoVenue, isVenueAdmin } = useCurrentUser();
+  const isAdmin = isVenueAdmin;
+  const canManage = canDoVenue("location_admin");
+  const [, setLocation] = useWouterLocation();
   const searchString = useSearch();
   const initialHouseId = new URLSearchParams(searchString).get("houseId") ?? "";
 
@@ -107,7 +109,7 @@ export default function Registers() {
           </h1>
           <p className="text-muted-foreground text-sm">Точки расчёта на ярмарке.</p>
         </div>
-        {isAdmin && (
+        {canManage && (
           <Button onClick={openCreate} data-testid="btn-create-register">
             <Plus className="mr-2 h-4 w-4" /> Добавить
           </Button>
@@ -147,7 +149,7 @@ export default function Registers() {
                 <TableHead>Домик</TableHead>
                 <TableHead>Площадка</TableHead>
                 <TableHead>Статус</TableHead>
-                {isAdmin && <TableHead className="text-right">Действия</TableHead>}
+                <TableHead className="text-right">Действия</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -166,12 +168,17 @@ export default function Registers() {
                         {r.isActive ? "Активна" : "Неактивна"}
                       </Badge>
                     </TableCell>
-                    {isAdmin && (
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(r)} data-testid={`btn-edit-register-${r.id}`}><Edit className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(r.id)} data-testid={`btn-delete-register-${r.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                      </TableCell>
-                    )}
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => setLocation(`/shifts?registerId=${r.id}`)} data-testid={`btn-work-register-${r.id}`}>
+                        <Unlock className="mr-1.5 h-3.5 w-3.5" /> Смена
+                      </Button>
+                      {canManage && (
+                        <>
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(r)} data-testid={`btn-edit-register-${r.id}`}><Edit className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(r.id)} data-testid={`btn-delete-register-${r.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))
               )}

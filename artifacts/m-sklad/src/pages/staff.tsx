@@ -34,7 +34,7 @@ type StaffMember = {
 
 export default function Staff() {
   const { user, canDo } = useCurrentUser();
-  const isAdmin = canDo("admin");
+  const isAdmin = canDo("warehouse_chief");
   const [locationFilter, setLocationFilter] = useState("");
   const listParams = { locationId: locationFilter ? Number(locationFilter) : undefined };
   const { data: staff, isLoading } = useListStaff(listParams, { query: { queryKey: getListStaffQueryKey(listParams) } });

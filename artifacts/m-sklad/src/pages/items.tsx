@@ -55,7 +55,7 @@ export default function Items() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canDo } = useCurrentUser();
-  const isAdmin = canDo("admin");
+  const isAdmin = canDo("warehouse_chief");
 
   const categoryId = categoryFilter ? Number(categoryFilter) : undefined;
   const locationId = isAdmin && warehouseFilter ? Number(warehouseFilter) : undefined;
@@ -153,7 +153,7 @@ export default function Items() {
             {activeCategory ? "Позиции этой категории." : "Все материальные ценности."}
           </p>
         </div>
-        {canDo("admin") && (
+        {canDo("warehouse_chief") && (
           <Button onClick={openCreate} data-testid="btn-create-item">
             <Plus className="mr-2 h-4 w-4" /> Добавить
           </Button>
@@ -210,7 +210,7 @@ export default function Items() {
                 <TableHead className="text-right">Остаток</TableHead>
                 <TableHead className="text-right">Цена</TableHead>
                 <TableHead>Статус</TableHead>
-                {canDo("admin") && <TableHead className="text-right">Действия</TableHead>}
+                {canDo("warehouse_chief") && <TableHead className="text-right">Действия</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -254,7 +254,7 @@ export default function Items() {
                         <Badge variant="outline" className="text-xs text-emerald-700 bg-emerald-50 border-emerald-200">Норма</Badge>
                       )}
                     </TableCell>
-                    {canDo("admin") && (
+                    {canDo("warehouse_chief") && (
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(item)} data-testid={`btn-edit-item-${item.id}`}><Edit className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} data-testid={`btn-delete-item-${item.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -320,7 +320,7 @@ export default function Items() {
                           <span className="text-sm font-medium">{Number(item.currentStock).toFixed(2)} {item.unit}</span>
                           <span className="text-xs text-muted-foreground ml-2">{Number(item.pricePerUnit).toFixed(2)} сом/{item.unit}</span>
                         </div>
-                        {canDo("admin") && (
+                        {canDo("warehouse_chief") && (
                           <div className="flex gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)} data-testid={`btn-edit-item-${item.id}`}>
                               <Edit className="h-3.5 w-3.5" />

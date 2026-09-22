@@ -29,8 +29,9 @@ type HouseFormData = z.infer<typeof houseSchema>;
 type House = { id: number; name: string; isActive: boolean; locationId: number; locationName?: string | null; registerCount: number };
 
 export default function Houses() {
-  const { user, canDo } = useCurrentUser();
-  const isAdmin = canDo("admin");
+  const { user, canDoVenue, isVenueAdmin } = useCurrentUser();
+  const isAdmin = isVenueAdmin;
+  const canManage = canDoVenue("location_admin");
   const [, setLocation] = useWouterLocation();
   const [locationFilter, setLocationFilter] = useState("");
   const listParams = { locationId: locationFilter ? Number(locationFilter) : undefined };
@@ -103,7 +104,7 @@ export default function Houses() {
               </SelectContent>
             </Select>
           )}
-          {isAdmin && (
+          {canManage && (
             <Button onClick={openCreate} data-testid="btn-create-house">
               <Plus className="mr-2 h-4 w-4" /> Добавить
             </Button>
@@ -120,7 +121,7 @@ export default function Houses() {
                 <TableHead>Площадка</TableHead>
                 <TableHead>Касс</TableHead>
                 <TableHead>Статус</TableHead>
-                {isAdmin && <TableHead className="text-right">Действия</TableHead>}
+                {canManage && <TableHead className="text-right">Действия</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -145,7 +146,7 @@ export default function Houses() {
                         {h.isActive ? "Активен" : "Неактивен"}
                       </Badge>
                     </TableCell>
-                    {isAdmin && (
+                    {canManage && (
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" onClick={() => openEdit(h)} data-testid={`btn-edit-house-${h.id}`}><Edit className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(h.id)} data-testid={`btn-delete-house-${h.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>

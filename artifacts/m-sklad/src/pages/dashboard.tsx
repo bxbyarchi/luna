@@ -86,7 +86,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="heading-dashboard">Командный центр</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Обзор операций и ключевые показатели.</p>
         </div>
-        {canDo("admin") && (
+        {canDo("warehouse_chief") && (
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handleExportStock} data-testid="btn-export-stock">
               <Download className="mr-2 h-4 w-4" /> Остатки

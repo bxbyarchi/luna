@@ -6,7 +6,7 @@ import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
 import { requireRole } from "../middleware/rbac";
 import { sendLowStockAlert, sendHozkaLowStockAlert, sendWriteOffNotification } from "../lib/telegramBot";
-import { getWarehouseScope, canAccessLocation, locationExists } from "../lib/warehouseScope";
+import { getWarehouseScope, canAccessLocation, locationExists, isWarehouseAdmin } from "../lib/warehouseScope";
 
 const router: IRouter = Router();
 async function resolveLocation(req: Request, requested?: unknown) {
@@ -23,11 +23,11 @@ async function syncLegacyTotal(tx: any, itemId: number) { await tx.update(itemsT
 router.get("/write-offs", requireAuth(), async (req: Request, res: Response) => {
   const { itemId, staffId, from, to, locationId } = req.query; const scope = await getWarehouseScope(req); if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const conditions = []; if (itemId) conditions.push(eq(writeOffsTable.itemId, Number(itemId))); if (staffId) conditions.push(eq(writeOffsTable.staffId, Number(staffId))); if (from) conditions.push(gte(writeOffsTable.createdAt, new Date(String(from)))); if (to) conditions.push(lte(writeOffsTable.createdAt, new Date(String(to))));
-  const requestedLocation = locationId ? Number(locationId) : scope.locationId; if (scope.role !== "admin") { if (!requestedLocation || !canAccessLocation(scope, requestedLocation)) { res.status(403).json({ error: "Warehouse is not assigned" }); return; } conditions.push(eq(writeOffsTable.locationId, requestedLocation)); } else if (locationId) conditions.push(eq(writeOffsTable.locationId, Number(locationId)));
+  const requestedLocation = locationId ? Number(locationId) : scope.locationId; if (!isWarehouseAdmin(scope.role)) { if (!requestedLocation || !canAccessLocation(scope, requestedLocation)) { res.status(403).json({ error: "Warehouse is not assigned" }); return; } conditions.push(eq(writeOffsTable.locationId, requestedLocation)); } else if (locationId) conditions.push(eq(writeOffsTable.locationId, Number(locationId)));
   const rows = await db.select({ id: writeOffsTable.id, itemId: writeOffsTable.itemId, itemName: itemsTable.name, locationId: writeOffsTable.locationId, locationName: locationsTable.name, quantity: writeOffsTable.quantity, reason: writeOffsTable.reason, staffId: writeOffsTable.staffId, staffName: staffTable.name, photoUrl: writeOffsTable.photoUrl, notes: writeOffsTable.notes, totalValue: writeOffsTable.totalValue, createdAt: writeOffsTable.createdAt }).from(writeOffsTable).leftJoin(itemsTable, eq(writeOffsTable.itemId, itemsTable.id)).leftJoin(staffTable, eq(writeOffsTable.staffId, staffTable.id)).leftJoin(locationsTable, eq(writeOffsTable.locationId, locationsTable.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(sql`${writeOffsTable.createdAt} DESC`); res.json(rows);
 });
 
-router.post("/write-offs", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
+router.post("/write-offs", requireAuth(), requireRole("warehouse_chief"), async (req: Request, res: Response) => {
   const { itemId, quantity, reason, staffId, photoUrl, notes, locationId: requestedLocation } = req.body; if (!itemId || !quantity || !reason) { res.status(400).json({ error: "itemId, quantity, reason required" }); return; } const qty = Number(quantity); if (!Number.isFinite(qty) || qty <= 0) { res.status(400).json({ error: "quantity must be a positive number" }); return; }
   const resolved = await resolveLocation(req, requestedLocation); if (resolved.unauthorized) { res.status(403).json({ error: "Пользователь не настроен" }); return; } if (resolved.forbidden) { res.status(403).json({ error: "No access to this warehouse" }); return; } if (resolved.invalid) { res.status(400).json({ error: "Invalid warehouse" }); return; }
   const warehouseId = resolved.locationId; if (warehouseId === null) { res.status(400).json({ error: "locationId required" }); return; }

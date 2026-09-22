@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { db, transfersTable, warehouseStockTable, locationsTable, itemsTable } from "@workspace/db";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/requireAuth";
-import { getWarehouseScope, canAccessLocation, locationExists } from "../lib/warehouseScope";
+import { getWarehouseScope, canAccessLocation, locationExists, isWarehouseAdmin } from "../lib/warehouseScope";
 import { logAudit } from "../lib/auditLogger";
 
 const router: IRouter = Router();
@@ -24,7 +24,7 @@ router.get("/transfers", requireAuth(), async (req: Request, res: Response) => {
   }).from(transfersTable)
     .leftJoin(locationsTable, eq(transfersTable.fromLocationId, locationsTable.id))
     .leftJoin(itemsTable, eq(transfersTable.itemId, itemsTable.id))
-    .where(scope.role === "admin" ? undefined : sql`${transfersTable.fromLocationId} = ${scope.locationId} OR ${transfersTable.toLocationId} = ${scope.locationId}`)
+    .where(isWarehouseAdmin(scope.role) ? undefined : sql`${transfersTable.fromLocationId} = ${scope.locationId} OR ${transfersTable.toLocationId} = ${scope.locationId}`)
     .orderBy(asc(transfersTable.createdAt));
   res.json(rows);
 });

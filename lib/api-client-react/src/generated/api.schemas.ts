@@ -13,10 +13,13 @@ export type CurrentUserRole =
   (typeof CurrentUserRole)[keyof typeof CurrentUserRole];
 
 export const CurrentUserRole = {
-  admin: "admin",
+  super_admin: "super_admin",
+  warehouse_chief: "warehouse_chief",
   manager: "manager",
   accountant: "accountant",
   warehouse: "warehouse",
+  location_admin: "location_admin",
+  cashier: "cashier",
 } as const;
 
 export interface CurrentUser {
@@ -332,6 +335,8 @@ export interface Shift {
   totalSalesCash: string;
   totalSalesCard: string;
   totalReturns: string;
+  totalCollected: string;
+  totalDeposited: string;
   /** @nullable */
   notes?: string | null;
   openedAt: string;
@@ -341,6 +346,7 @@ export interface Shift {
 
 export type ShiftListItem = Shift & {
   registerName?: string;
+  houseId?: number;
   houseName?: string;
   locationId?: number;
   /** @nullable */
@@ -358,7 +364,67 @@ export interface CloseShiftBody {
   notes?: string;
 }
 
+export interface Product {
+  id: number;
+  houseId: number;
+  category: string;
+  name: string;
+  price: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface CreateProductBody {
+  houseId: number;
+  category: string;
+  name: string;
+  price: number;
+  sortOrder?: number;
+}
+
+export interface UpdateProductBody {
+  category?: string;
+  name?: string;
+  price?: number;
+  isActive?: boolean;
+  sortOrder?: number;
+}
+
+export type CashMovementType =
+  (typeof CashMovementType)[keyof typeof CashMovementType];
+
+export const CashMovementType = {
+  collection: "collection",
+  deposit: "deposit",
+} as const;
+
+export interface CashMovement {
+  id: number;
+  shiftId: number;
+  type: CashMovementType;
+  amount: string;
+  /** @nullable */
+  note?: string | null;
+  createdAt: string;
+}
+
+export type CreateCashMovementBodyType =
+  (typeof CreateCashMovementBodyType)[keyof typeof CreateCashMovementBodyType];
+
+export const CreateCashMovementBodyType = {
+  collection: "collection",
+  deposit: "deposit",
+} as const;
+
+export interface CreateCashMovementBody {
+  type: CreateCashMovementBodyType;
+  amount: number;
+  note?: string;
+}
+
 export interface SaleItemInput {
+  productId?: number;
   name: string;
   quantity: number;
   pricePerUnit: number;
@@ -375,6 +441,8 @@ export const CreateSaleBodyPaymentMethod = {
 export interface CreateSaleBody {
   shiftId: number;
   paymentMethod?: CreateSaleBodyPaymentMethod;
+  discountPercent?: number;
+  discountReason?: string;
   items: SaleItemInput[];
 }
 
@@ -398,6 +466,11 @@ export interface Sale {
   id: number;
   shiftId: number;
   registerId: number;
+  subtotalAmount: string;
+  discountPercent: string;
+  discountAmount: string;
+  /** @nullable */
+  discountReason?: string | null;
   totalAmount: string;
   paymentMethod: SalePaymentMethod;
   status: SaleStatus;
@@ -414,6 +487,8 @@ export type SaleListItem = Sale & {
 export interface SaleItem {
   id: number;
   saleId: number;
+  /** @nullable */
+  productId?: number | null;
   name: string;
   quantity: string;
   pricePerUnit: string;
@@ -681,6 +756,10 @@ export type GetKassaAnalyticsSummaryParams = {
   locationId?: number;
   from?: string;
   to?: string;
+};
+
+export type ListProductsParams = {
+  houseId: number;
 };
 
 export type ListItemsParams = {

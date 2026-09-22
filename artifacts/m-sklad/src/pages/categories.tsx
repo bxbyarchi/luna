@@ -117,7 +117,7 @@ export default function Categories() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="heading-categories">Категории</h1>
           <p className="text-muted-foreground text-sm">Группы классификации позиций.</p>
         </div>
-        {canDo("admin") && (
+        {canDo("warehouse_chief") && (
           <Button onClick={openCreate} data-testid="btn-create-category">
             <Plus className="mr-2 h-4 w-4" /> Добавить
           </Button>
@@ -132,7 +132,7 @@ export default function Categories() {
                 <TableHead>Название</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Описание</TableHead>
-                {canDo("admin") && <TableHead className="text-right">Действия</TableHead>}
+                {canDo("warehouse_chief") && <TableHead className="text-right">Действия</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -152,7 +152,7 @@ export default function Categories() {
                     <TableCell className="font-medium">{cat.name}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{cat.slug}</TableCell>
                     <TableCell className="text-muted-foreground">{cat.description ?? "—"}</TableCell>
-                    {canDo("admin") && (
+                    {canDo("warehouse_chief") && (
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" onClick={() => openEdit(cat)} data-testid={`btn-edit-cat-${cat.id}`}><Edit className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(cat.id)} data-testid={`btn-delete-cat-${cat.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>

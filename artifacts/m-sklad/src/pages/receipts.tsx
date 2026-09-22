@@ -99,7 +99,7 @@ export default function Receipts() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canDo, user, isLoading: authLoading } = useCurrentUser();
-  const isAdmin = canDo("admin");
+  const isAdmin = canDo("warehouse_chief");
 
   const { data: receipts, isLoading } = useListReceipts(undefined, { query: { queryKey: getListReceiptsQueryKey() } });
   const { data: items } = useListItems(undefined, { query: { queryKey: getListItemsQueryKey() } });

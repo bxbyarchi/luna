@@ -17,8 +17,9 @@ import {
 } from "@workspace/db";
 import { eq, sql, and, gte, lte, or } from "drizzle-orm";
 import ExcelJS from "exceljs";
-import { requireRole } from "../middleware/rbac";
+import { requireRole, requireVenueRole } from "../middleware/rbac";
 import { getWarehouseScope } from "../lib/warehouseScope";
+import { isVenueAdmin } from "../lib/venueScope";
 
 const router: IRouter = Router();
 
@@ -73,7 +74,7 @@ async function buildBuffer(wb: ExcelJS.Workbook): Promise<Buffer> {
   return Buffer.from(arrayBuf);
 }
 
-router.get("/export/stock", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
+router.get("/export/stock", requireAuth(), requireRole("warehouse_chief"), async (req: Request, res: Response) => {
   const rows = await db
     .select({
       id: itemsTable.id,
@@ -116,7 +117,7 @@ router.get("/export/stock", requireAuth(), requireRole("admin"), async (req: Req
   res.send(buf);
 });
 
-router.get("/export/write-offs", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
+router.get("/export/write-offs", requireAuth(), requireRole("warehouse_chief"), async (req: Request, res: Response) => {
   const { from, to } = req.query;
   const conditions = [];
   if (from) conditions.push(gte(writeOffsTable.createdAt, new Date(String(from))));
@@ -161,7 +162,7 @@ router.get("/export/write-offs", requireAuth(), requireRole("admin"), async (req
   res.send(buf);
 });
 
-router.get("/reports/full", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
+router.get("/reports/full", requireAuth(), requireRole("warehouse_chief"), async (req: Request, res: Response) => {
   const { from, to, format, categoryId } = req.query;
   const fromDate = from ? new Date(String(from)) : undefined;
   const toDate = to ? new Date(String(to) + "T23:59:59") : undefined;
@@ -419,10 +420,10 @@ router.get("/reports/full", requireAuth(), requireRole("admin"), async (req: Req
   res.send(buf);
 });
 
-router.get("/export/kassa", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+router.get("/export/kassa", requireAuth(), requireVenueRole("location_admin"), async (req: Request, res: Response) => {
   const scope = await getWarehouseScope(req);
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
-  const locationId = scope.role === "admin" && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
+  const locationId = isVenueAdmin(scope.role) && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
   const { from, to } = req.query;
   const fromDate = from ? new Date(String(from)) : undefined;
   const toDate = to ? new Date(String(to) + "T23:59:59") : undefined;

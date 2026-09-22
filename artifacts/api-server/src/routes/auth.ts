@@ -37,9 +37,9 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
       .from(usersTable)
       .catch(() => [{ count: 0 }]);
 
-    // Only the very first account becomes Завхоз. Every subsequent account
-    // starts as a warehouse user and must be assigned by an administrator.
-    const role = Number(userCount) === 0 ? "admin" : "warehouse";
+    // Only the very first account becomes super_admin. Every subsequent account
+    // starts as a warehouse user and must be assigned a real role by an administrator.
+    const role = Number(userCount) === 0 ? "super_admin" : "warehouse";
 
     [user] = await db
       .insert(usersTable)

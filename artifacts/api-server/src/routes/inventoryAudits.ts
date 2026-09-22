@@ -6,7 +6,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
 import { requireRole } from "../middleware/rbac";
 import { sendLowStockAlert } from "../lib/telegramBot";
-import { getWarehouseScope, canAccessLocation, locationExists } from "../lib/warehouseScope";
+import { getWarehouseScope, canAccessLocation, locationExists, isWarehouseAdmin } from "../lib/warehouseScope";
 
 const router: IRouter = Router();
 
@@ -29,7 +29,7 @@ router.get("/inventory-audits", requireAuth(), async (req: Request, res: Respons
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const requested = req.query.locationId ? Number(req.query.locationId) : scope.locationId;
   const conditions = [];
-  if (scope.role !== "admin") {
+  if (!isWarehouseAdmin(scope.role)) {
     if (!requested || !canAccessLocation(scope, requested)) { res.status(403).json({ error: "Warehouse is not assigned" }); return; }
     conditions.push(eq(inventoryAuditsTable.locationId, requested));
   } else if (req.query.locationId) conditions.push(eq(inventoryAuditsTable.locationId, Number(req.query.locationId)));
@@ -37,7 +37,7 @@ router.get("/inventory-audits", requireAuth(), async (req: Request, res: Respons
   res.json(rows);
 });
 
-router.post("/inventory-audits", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
+router.post("/inventory-audits", requireAuth(), requireRole("warehouse_chief"), async (req: Request, res: Response) => {
   const { title, locationId: requestedLocation } = req.body;
   if (!title) { res.status(400).json({ error: "title required" }); return; }
   const resolved = await resolveLocation(req, requestedLocation);
@@ -67,7 +67,7 @@ router.get("/inventory-audits/:id", requireAuth(), async (req: Request, res: Res
   res.json({ ...audit, items: auditItems });
 });
 
-router.patch("/inventory-audits/:id", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
+router.patch("/inventory-audits/:id", requireAuth(), requireRole("warehouse_chief"), async (req: Request, res: Response) => {
   const id = Number(req.params.id), { items } = req.body;
   if (!Array.isArray(items)) { res.status(400).json({ error: "items array required" }); return; }
   const existing = await db.query.inventoryAuditsTable.findFirst({ where: eq(inventoryAuditsTable.id, id) });
@@ -81,7 +81,7 @@ router.patch("/inventory-audits/:id", requireAuth(), requireRole("admin"), async
   res.json(audit);
 });
 
-router.post("/inventory-audits/:id/submit", requireAuth(), requireRole("admin"), async (req: Request, res: Response) => {
+router.post("/inventory-audits/:id/submit", requireAuth(), requireRole("warehouse_chief"), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const audit = await db.query.inventoryAuditsTable.findFirst({ where: eq(inventoryAuditsTable.id, id) });
   if (!audit) { res.status(404).json({ error: "Not found" }); return; }

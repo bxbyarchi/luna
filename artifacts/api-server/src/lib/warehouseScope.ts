@@ -20,8 +20,13 @@ export async function getWarehouseScope(req: Request): Promise<WarehouseScope | 
   return { userId, role: user.role, locationId: user.locationId ?? null };
 }
 
+/** super_admin and warehouse_chief see every warehouse location, not just their own. */
+export function isWarehouseAdmin(role: string): boolean {
+  return role === "super_admin" || role === "warehouse_chief";
+}
+
 export function canAccessLocation(scope: WarehouseScope | null, locationId: number | null): boolean {
-  return !!scope && locationId !== null && (scope.role === "admin" || scope.locationId === locationId);
+  return !!scope && locationId !== null && (isWarehouseAdmin(scope.role) || scope.locationId === locationId);
 }
 
 export async function requireWarehouseLocation(req: Request, locationId: number): Promise<WarehouseScope | null> {

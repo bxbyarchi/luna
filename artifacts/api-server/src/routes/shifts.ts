@@ -3,15 +3,16 @@ import { requireAuth } from "../lib/requireAuth";
 import { db, shiftsTable, registersTable, housesTable, locationsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
-import { getWarehouseScope, canAccessLocation } from "../lib/warehouseScope";
-import { getRegisterLocationId } from "../lib/venueScope";
+import { requireVenueRole } from "../middleware/rbac";
+import { getWarehouseScope } from "../lib/warehouseScope";
+import { isVenueAdmin, canAccessVenueLocation, getRegisterLocationId } from "../lib/venueScope";
 
 const router: IRouter = Router();
 
-router.get("/shifts", requireAuth(), async (req: Request, res: Response) => {
+router.get("/shifts", requireAuth(), requireVenueRole("cashier"), async (req: Request, res: Response) => {
   const scope = await getWarehouseScope(req);
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
-  const requestedLocation = scope.role === "admin" && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
+  const requestedLocation = isVenueAdmin(scope.role) && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
 
   const conditions = [];
   if (requestedLocation) conditions.push(eq(housesTable.locationId, requestedLocation));
@@ -23,6 +24,7 @@ router.get("/shifts", requireAuth(), async (req: Request, res: Response) => {
       id: shiftsTable.id,
       registerId: shiftsTable.registerId,
       registerName: registersTable.name,
+      houseId: housesTable.id,
       houseName: housesTable.name,
       locationId: housesTable.locationId,
       locationName: locationsTable.name,
@@ -35,6 +37,8 @@ router.get("/shifts", requireAuth(), async (req: Request, res: Response) => {
       totalSalesCash: shiftsTable.totalSalesCash,
       totalSalesCard: shiftsTable.totalSalesCard,
       totalReturns: shiftsTable.totalReturns,
+      totalCollected: shiftsTable.totalCollected,
+      totalDeposited: shiftsTable.totalDeposited,
       notes: shiftsTable.notes,
       openedAt: shiftsTable.openedAt,
       closedAt: shiftsTable.closedAt,
@@ -48,18 +52,18 @@ router.get("/shifts", requireAuth(), async (req: Request, res: Response) => {
   res.json(rows);
 });
 
-router.get("/shifts/:id", requireAuth(), async (req: Request, res: Response) => {
+router.get("/shifts/:id", requireAuth(), requireVenueRole("cashier"), async (req: Request, res: Response) => {
   const scope = await getWarehouseScope(req);
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const id = Number(req.params.id);
   const [row] = await db.select().from(shiftsTable).where(eq(shiftsTable.id, id));
   if (!row) { res.status(404).json({ error: "Not found" }); return; }
   const locationId = await getRegisterLocationId(row.registerId);
-  if (!canAccessLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа к этой смене" }); return; }
+  if (!canAccessVenueLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа к этой смене" }); return; }
   res.json(row);
 });
 
-router.post("/shifts", requireAuth(), async (req: Request, res: Response) => {
+router.post("/shifts", requireAuth(), requireVenueRole("cashier"), async (req: Request, res: Response) => {
   const scope = await getWarehouseScope(req);
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const { registerId, cashierName, openingCash } = req.body;
@@ -67,7 +71,7 @@ router.post("/shifts", requireAuth(), async (req: Request, res: Response) => {
   if (!regId || !cashierName) { res.status(400).json({ error: "registerId и cashierName обязательны" }); return; }
 
   const locationId = await getRegisterLocationId(regId);
-  if (!canAccessLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа к этой кассе" }); return; }
+  if (!canAccessVenueLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа к этой кассе" }); return; }
 
   const existingOpen = await db.query.shiftsTable.findFirst({ where: and(eq(shiftsTable.registerId, regId), eq(shiftsTable.status, "open")) });
   if (existingOpen) { res.status(409).json({ error: "На этой кассе уже есть открытая смена" }); return; }
@@ -82,7 +86,7 @@ router.post("/shifts", requireAuth(), async (req: Request, res: Response) => {
   res.status(201).json(row);
 });
 
-router.patch("/shifts/:id/close", requireAuth(), async (req: Request, res: Response) => {
+router.patch("/shifts/:id/close", requireAuth(), requireVenueRole("cashier"), async (req: Request, res: Response) => {
   const scope = await getWarehouseScope(req);
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const id = Number(req.params.id);
@@ -92,10 +96,10 @@ router.patch("/shifts/:id/close", requireAuth(), async (req: Request, res: Respo
   const shift = await db.query.shiftsTable.findFirst({ where: eq(shiftsTable.id, id) });
   if (!shift) { res.status(404).json({ error: "Not found" }); return; }
   const locationId = await getRegisterLocationId(shift.registerId);
-  if (!canAccessLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа к этой смене" }); return; }
+  if (!canAccessVenueLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа к этой смене" }); return; }
   if (shift.status !== "open") { res.status(409).json({ error: "Смена уже закрыта" }); return; }
 
-  const expectedCash = Number(shift.openingCash) + Number(shift.totalSalesCash) - Number(shift.totalReturns);
+  const expectedCash = Number(shift.openingCash) + Number(shift.totalSalesCash) - Number(shift.totalReturns) - Number(shift.totalCollected) + Number(shift.totalDeposited);
   const counted = Number(closingCashCounted);
   const cashDifference = counted - expectedCash;
 

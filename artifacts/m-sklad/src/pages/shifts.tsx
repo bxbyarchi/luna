@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearch } from "wouter";
 import {
   useListShifts, useOpenShift, useCloseShift, useCreateSale, useCreateReturn,
   useListSales, useListRegisters, useListLocations, useGetSale,
-  getListShiftsQueryKey, getListSalesQueryKey, getGetSaleQueryKey,
+  useListProducts, useListCashMovements, useCreateCashMovement,
+  getListShiftsQueryKey, getListSalesQueryKey, getGetSaleQueryKey, getListCashMovementsQueryKey, getListProductsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Lock, Unlock, Trash2, Landmark } from "lucide-react";
+import { Plus, Lock, Unlock, Trash2, Landmark, Minus, Wallet, ArrowDownToLine, ArrowUpFromLine, Percent } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -34,23 +36,34 @@ const closeSchema = z.object({
 });
 type CloseFormData = z.infer<typeof closeSchema>;
 
+const movementSchema = z.object({
+  type: z.enum(["collection", "deposit"]),
+  amount: z.string().min(1, "Укажите сумму"),
+  note: z.string().optional(),
+});
+type MovementFormData = z.infer<typeof movementSchema>;
+
 type ShiftRow = {
-  id: number; registerId: number; registerName: string; houseName: string; locationName?: string | null;
+  id: number; registerId: number; houseId?: number; registerName: string; houseName: string; locationName?: string | null;
   cashierName: string; status: "open" | "closed"; openingCash: string;
   closingCashCounted?: string | null; expectedCash?: string | null; cashDifference?: string | null;
   totalSalesCash: string; totalSalesCard: string; totalReturns: string;
+  totalCollected: string; totalDeposited: string;
   openedAt: string; closedAt?: string | null;
 };
 
-type CartItem = { name: string; quantity: string; pricePerUnit: string };
+type ProductRow = { id: number; houseId: number; category: string; name: string; price: string; isActive: boolean; sortOrder: number };
+type CartItem = { productId?: number; name: string; quantity: string; pricePerUnit: string };
 
 function money(v: string | number) {
   return Number(v).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " сом";
 }
 
 export default function Shifts() {
-  const { canDo } = useCurrentUser();
-  const isAdmin = canDo("admin");
+  const { isVenueAdmin } = useCurrentUser();
+  const isAdmin = isVenueAdmin;
+  const searchString = useSearch();
+  const presetRegisterId = new URLSearchParams(searchString).get("registerId") ?? "";
   const [locationFilter, setLocationFilter] = useState("");
   const listParams = { locationId: locationFilter ? Number(locationFilter) : undefined };
   const { data: shifts, isLoading } = useListShifts(listParams, { query: { queryKey: getListShiftsQueryKey(listParams) } });
@@ -62,11 +75,24 @@ export default function Shifts() {
 
   const [openDialogOpen, setOpenDialogOpen] = useState(false);
   const [workingShift, setWorkingShift] = useState<ShiftRow | null>(null);
+  const [autoOpenedFor, setAutoOpenedFor] = useState<string | null>(null);
 
   const openShift = useOpenShift();
   const closeShift = useCloseShift();
 
   const openForm = useForm<OpenFormData>({ resolver: zodResolver(openSchema), defaultValues: { registerId: "", cashierName: "", openingCash: "0" } });
+
+  useEffect(() => {
+    if (!presetRegisterId || !shifts || autoOpenedFor === presetRegisterId) return;
+    setAutoOpenedFor(presetRegisterId);
+    const openShiftForRegister = (shifts as ShiftRow[]).find((s) => s.registerId === Number(presetRegisterId) && s.status === "open");
+    if (openShiftForRegister) {
+      setWorkingShift(openShiftForRegister);
+    } else {
+      openForm.reset({ registerId: presetRegisterId, cashierName: "", openingCash: "0" });
+      setOpenDialogOpen(true);
+    }
+  }, [presetRegisterId, shifts, autoOpenedFor, openForm]);
 
   function submitOpen(data: OpenFormData) {
     openShift.mutate({ data: { registerId: Number(data.registerId), cashierName: data.cashierName, openingCash: Number(data.openingCash || 0) } }, {
@@ -205,31 +231,72 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
   const queryClient = useQueryClient();
   const salesParams = { shiftId: shift.id };
   const { data: sales, isLoading: loadingSales } = useListSales(salesParams, { query: { queryKey: getListSalesQueryKey(salesParams) } });
+  const productsParams = { houseId: shift.houseId ?? 0 };
+  const { data: products } = useListProducts(productsParams, { query: { queryKey: getListProductsQueryKey(productsParams), enabled: !!shift.houseId } });
+  const { data: movements } = useListCashMovements(shift.id, { query: { queryKey: getListCashMovementsQueryKey(shift.id) } });
   const createSale = useCreateSale();
   const closeShift = useCloseShift();
+  const createMovement = useCreateCashMovement();
 
-  const [cart, setCart] = useState<CartItem[]>([{ name: "", quantity: "1", pricePerUnit: "" }]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualRow, setManualRow] = useState<CartItem>({ name: "", quantity: "1", pricePerUnit: "" });
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
+  const [discountPercent, setDiscountPercent] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [movementDialogOpen, setMovementDialogOpen] = useState(false);
   const [zReport, setZReport] = useState<ShiftRow | null>(null);
 
   const closeForm = useForm<CloseFormData>({ resolver: zodResolver(closeSchema), defaultValues: { closingCashCounted: "", notes: "" } });
+  const movementForm = useForm<MovementFormData>({ resolver: zodResolver(movementSchema), defaultValues: { type: "collection", amount: "", note: "" } });
 
-  function updateCartRow(idx: number, field: keyof CartItem, value: string) {
-    setCart((prev) => prev.map((row, i) => (i === idx ? { ...row, [field]: value } : row)));
+  const productsByCategory = (products as ProductRow[] | undefined)?.reduce<Record<string, ProductRow[]>>((acc, p) => {
+    (acc[p.category] ??= []).push(p);
+    return acc;
+  }, {}) ?? {};
+
+  function addProductToCart(p: ProductRow) {
+    setCart((prev) => {
+      const existing = prev.find((r) => r.productId === p.id);
+      if (existing) return prev.map((r) => (r.productId === p.id ? { ...r, quantity: String(Number(r.quantity) + 1) } : r));
+      return [...prev, { productId: p.id, name: p.name, quantity: "1", pricePerUnit: p.price }];
+    });
   }
-  function addCartRow() { setCart((prev) => [...prev, { name: "", quantity: "1", pricePerUnit: "" }]); }
+  function changeCartQty(idx: number, delta: number) {
+    setCart((prev) => prev.map((r, i) => {
+      if (i !== idx) return r;
+      const next = Math.max(0, Number(r.quantity) + delta);
+      return { ...r, quantity: String(next) };
+    }).filter((r) => Number(r.quantity) > 0));
+  }
   function removeCartRow(idx: number) { setCart((prev) => prev.filter((_, i) => i !== idx)); }
-  const cartTotal = cart.reduce((sum, r) => sum + (Number(r.quantity) || 0) * (Number(r.pricePerUnit) || 0), 0);
+  function addManualRow() {
+    if (!manualRow.name.trim() || !(Number(manualRow.quantity) > 0) || !(Number(manualRow.pricePerUnit) >= 0)) {
+      toast({ title: "Заполните название, количество и цену", variant: "destructive" });
+      return;
+    }
+    setCart((prev) => [...prev, { name: manualRow.name.trim(), quantity: manualRow.quantity, pricePerUnit: manualRow.pricePerUnit }]);
+    setManualRow({ name: "", quantity: "1", pricePerUnit: "" });
+    setManualOpen(false);
+  }
+
+  const cartSubtotal = cart.reduce((sum, r) => sum + (Number(r.quantity) || 0) * (Number(r.pricePerUnit) || 0), 0);
+  const discPct = Math.min(Math.max(Number(discountPercent) || 0, 0), 100);
+  const discountAmount = cartSubtotal * (discPct / 100);
+  const cartTotal = cartSubtotal - discountAmount;
 
   function submitSale() {
+    if (discPct > 0 && !discountReason.trim()) { toast({ title: "Укажите причину скидки", variant: "destructive" }); return; }
     const items = cart.filter((r) => r.name.trim() && Number(r.quantity) > 0 && Number(r.pricePerUnit) >= 0)
-      .map((r) => ({ name: r.name.trim(), quantity: Number(r.quantity), pricePerUnit: Number(r.pricePerUnit) }));
+      .map((r) => ({ productId: r.productId, name: r.name.trim(), quantity: Number(r.quantity), pricePerUnit: Number(r.pricePerUnit) }));
     if (!items.length) { toast({ title: "Добавьте хотя бы одну позицию", variant: "destructive" }); return; }
-    createSale.mutate({ data: { shiftId: shift.id, paymentMethod, items } }, {
+    createSale.mutate({ data: { shiftId: shift.id, paymentMethod, items, discountPercent: discPct || undefined, discountReason: discPct > 0 ? discountReason.trim() : undefined } }, {
       onSuccess: () => {
         toast({ title: "Продажа оформлена" });
-        setCart([{ name: "", quantity: "1", pricePerUnit: "" }]);
+        setCart([]);
+        setDiscountPercent("");
+        setDiscountReason("");
         queryClient.invalidateQueries({ queryKey: getListSalesQueryKey(salesParams) });
         queryClient.invalidateQueries({ queryKey: getListShiftsQueryKey() });
       },
@@ -248,9 +315,24 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
     });
   }
 
+  function submitMovement(data: MovementFormData) {
+    createMovement.mutate({ id: shift.id, data: { type: data.type, amount: Number(data.amount), note: data.note } }, {
+      onSuccess: () => {
+        toast({ title: data.type === "collection" ? "Инкассация оформлена" : "Пополнение оформлено" });
+        movementForm.reset({ type: "collection", amount: "", note: "" });
+        setMovementDialogOpen(false);
+        queryClient.invalidateQueries({ queryKey: getListCashMovementsQueryKey(shift.id) });
+        queryClient.invalidateQueries({ queryKey: getListShiftsQueryKey() });
+      },
+      onError: (e: unknown) => toast({ title: "Ошибка", description: e instanceof Error ? e.message : undefined, variant: "destructive" }),
+    });
+  }
+
+  const expectedCashNow = Number(shift.openingCash) + Number(shift.totalSalesCash) - Number(shift.totalReturns) - Number(shift.totalCollected) + Number(shift.totalDeposited);
+
   return (
     <Sheet open onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{shift.registerName} — {shift.houseName}{shift.locationName ? ` · ${shift.locationName}` : ""}</SheetTitle>
         </SheetHeader>
@@ -273,24 +355,104 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
 
           {shift.status === "open" && !zReport && (
             <div className="space-y-3">
-              <div className="font-semibold text-sm">Новая продажа</div>
-              {cart.map((row, idx) => (
-                <div key={idx} className="flex gap-2 items-start">
-                  <Input placeholder="Товар (напр. Трдельник)" value={row.name} onChange={(e) => updateCartRow(idx, "name", e.target.value)} className="flex-1" data-testid={`input-cart-name-${idx}`} />
-                  <Input placeholder="Кол-во" type="number" step="0.001" value={row.quantity} onChange={(e) => updateCartRow(idx, "quantity", e.target.value)} className="w-20" data-testid={`input-cart-qty-${idx}`} />
-                  <Input placeholder="Цена" type="number" step="0.01" value={row.pricePerUnit} onChange={(e) => updateCartRow(idx, "pricePerUnit", e.target.value)} className="w-24" data-testid={`input-cart-price-${idx}`} />
-                  <Button variant="ghost" size="icon" onClick={() => removeCartRow(idx)} disabled={cart.length === 1}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+              <div className="flex items-center justify-between">
+                <div className="font-semibold text-sm">Новая продажа</div>
+                <Button variant="ghost" size="sm" onClick={() => setMovementDialogOpen(true)} data-testid="btn-cash-movement"><Wallet className="mr-1.5 h-3.5 w-3.5" /> Инкассация</Button>
+              </div>
+
+              {!shift.houseId || !Object.keys(productsByCategory).length ? (
+                <p className="text-xs text-muted-foreground">Для этого домика ещё не настроены товары. Добавьте позицию вручную ниже.</p>
+              ) : (
+                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                  {Object.entries(productsByCategory).map(([category, items]) => (
+                    <div key={category} className="space-y-1.5">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{category}</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {items.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => addProductToCart(p)}
+                            data-testid={`btn-product-${p.id}`}
+                            className="rounded-lg border border-border bg-card hover:bg-accent/60 active:scale-[0.98] transition-all p-3 text-left"
+                          >
+                            <div className="text-sm font-medium leading-tight">{p.name}</div>
+                            <div className="text-xs text-muted-foreground mt-1">{money(p.price)}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              <Button variant="outline" size="sm" onClick={addCartRow}><Plus className="mr-1.5 h-3.5 w-3.5" /> Ещё позиция</Button>
+              )}
+
+              {!manualOpen ? (
+                <Button variant="outline" size="sm" onClick={() => setManualOpen(true)}><Plus className="mr-1.5 h-3.5 w-3.5" /> Другой товар</Button>
+              ) : (
+                <div className="flex gap-2 items-start rounded-lg border border-dashed border-border p-2">
+                  <Input placeholder="Название" value={manualRow.name} onChange={(e) => setManualRow((r) => ({ ...r, name: e.target.value }))} className="flex-1" data-testid="input-manual-name" />
+                  <Input placeholder="Кол-во" type="number" step="0.001" value={manualRow.quantity} onChange={(e) => setManualRow((r) => ({ ...r, quantity: e.target.value }))} className="w-16" data-testid="input-manual-qty" />
+                  <Input placeholder="Цена" type="number" step="0.01" value={manualRow.pricePerUnit} onChange={(e) => setManualRow((r) => ({ ...r, pricePerUnit: e.target.value }))} className="w-20" data-testid="input-manual-price" />
+                  <Button size="sm" onClick={addManualRow} data-testid="btn-add-manual">OK</Button>
+                </div>
+              )}
+
+              {cart.length > 0 && (
+                <div className="space-y-1.5 rounded-lg border border-border p-2">
+                  {cart.map((row, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-sm gap-2">
+                      <span className="flex-1 truncate">{row.name}</span>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => changeCartQty(idx, -1)}><Minus className="h-3 w-3" /></Button>
+                        <span className="w-6 text-center text-xs">{row.quantity}</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => changeCartQty(idx, 1)}><Plus className="h-3 w-3" /></Button>
+                      </div>
+                      <span className="w-16 text-right text-xs text-muted-foreground">{money(Number(row.quantity) * Number(row.pricePerUnit))}</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeCartRow(idx)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <Percent className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <Input placeholder="Скидка %" type="number" min="0" max="100" step="1" value={discountPercent} onChange={(e) => setDiscountPercent(e.target.value)} className="w-24" data-testid="input-discount-percent" />
+                {discPct > 0 && (
+                  <Input placeholder="Причина скидки (напр. сотрудник)" value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} className="flex-1" data-testid="input-discount-reason" />
+                )}
+              </div>
+
               <div className="flex items-center justify-between pt-2">
                 <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as "cash" | "card")}>
                   <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="cash">Наличные</SelectItem><SelectItem value="card">Безнал</SelectItem></SelectContent>
                 </Select>
-                <div className="font-semibold">Итого: {money(cartTotal)}</div>
+                <div className="text-right">
+                  {discPct > 0 && <div className="text-xs text-muted-foreground line-through">{money(cartSubtotal)}</div>}
+                  <div className="font-semibold">Итого: {money(cartTotal)}</div>
+                </div>
               </div>
-              <Button className="w-full" onClick={submitSale} disabled={createSale.isPending} data-testid="btn-submit-sale">Оформить продажу</Button>
+              <Button className="w-full" onClick={submitSale} disabled={createSale.isPending || !cart.length} data-testid="btn-submit-sale">Оформить продажу</Button>
+            </div>
+          )}
+
+          {(Number(shift.totalCollected) > 0 || Number(shift.totalDeposited) > 0 || !!movements?.length) && (
+            <div className="space-y-2">
+              <div className="font-semibold text-sm">Инкассация</div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-lg border border-border p-3"><div className="text-muted-foreground text-xs flex items-center gap-1"><ArrowUpFromLine className="h-3 w-3" />Изъято</div><div className="font-medium">{money(shift.totalCollected)}</div></div>
+                <div className="rounded-lg border border-border p-3"><div className="text-muted-foreground text-xs flex items-center gap-1"><ArrowDownToLine className="h-3 w-3" />Внесено</div><div className="font-medium">{money(shift.totalDeposited)}</div></div>
+              </div>
+              {!!movements?.length && (
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {movements.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{m.type === "collection" ? "Изъятие" : "Внесение"}{m.note ? ` — ${m.note}` : ""}</span>
+                      <span className={m.type === "collection" ? "text-destructive" : "text-emerald-700"}>{m.type === "collection" ? "−" : "+"}{money(m.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -321,7 +483,7 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
           <DialogHeader><DialogTitle>Закрыть смену</DialogTitle></DialogHeader>
           <Form {...closeForm}>
             <form onSubmit={closeForm.handleSubmit(submitClose)} className="space-y-4">
-              <p className="text-sm text-muted-foreground">Ожидается в кассе: {money(Number(shift.openingCash) + Number(shift.totalSalesCash) - Number(shift.totalReturns))}</p>
+              <p className="text-sm text-muted-foreground">Ожидается в кассе: {money(expectedCashNow)}</p>
               <FormField control={closeForm.control} name="closingCashCounted" render={({ field }) => (
                 <FormItem><FormLabel>Наличные по факту (сом) *</FormLabel><FormControl><Input type="number" step="0.01" {...field} data-testid="input-closing-cash" /></FormControl><FormMessage /></FormItem>
               )} />
@@ -331,6 +493,37 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setCloseDialogOpen(false)}>Отмена</Button>
                 <Button type="submit" variant="destructive" disabled={closeShift.isPending} data-testid="btn-submit-close">Закрыть смену</Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={movementDialogOpen} onOpenChange={setMovementDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Инкассация</DialogTitle></DialogHeader>
+          <Form {...movementForm}>
+            <form onSubmit={movementForm.handleSubmit(submitMovement)} className="space-y-4">
+              <FormField control={movementForm.control} name="type" render={({ field }) => (
+                <FormItem><FormLabel>Тип операции *</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl><SelectTrigger data-testid="select-movement-type"><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="collection">Изъятие (инкассация)</SelectItem>
+                      <SelectItem value="deposit">Внесение</SelectItem>
+                    </SelectContent>
+                  </Select>
+                <FormMessage /></FormItem>
+              )} />
+              <FormField control={movementForm.control} name="amount" render={({ field }) => (
+                <FormItem><FormLabel>Сумма (сом) *</FormLabel><FormControl><Input type="number" step="0.01" {...field} data-testid="input-movement-amount" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={movementForm.control} name="note" render={({ field }) => (
+                <FormItem><FormLabel>Комментарий</FormLabel><FormControl><Input placeholder="Необязательно" {...field} data-testid="input-movement-note" /></FormControl><FormMessage /></FormItem>
+              )} />
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setMovementDialogOpen(false)}>Отмена</Button>
+                <Button type="submit" disabled={createMovement.isPending} data-testid="btn-submit-movement">Сохранить</Button>
               </div>
             </form>
           </Form>

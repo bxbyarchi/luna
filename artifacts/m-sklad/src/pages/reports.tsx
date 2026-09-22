@@ -81,7 +81,7 @@ export default function Reports() {
 
   const { data: categories } = useListCategories();
 
-  if (!roleLoading && !canDo("admin")) {
+  if (!roleLoading && !canDo("warehouse_chief")) {
     return <AccessDenied />;
   }
 

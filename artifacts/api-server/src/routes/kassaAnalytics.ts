@@ -3,6 +3,8 @@ import { requireAuth } from "../lib/requireAuth";
 import { db, salesTable, saleItemsTable, shiftsTable, registersTable, housesTable, locationsTable } from "@workspace/db";
 import { eq, and, sql, gte, lte } from "drizzle-orm";
 import { getWarehouseScope } from "../lib/warehouseScope";
+import { isVenueAdmin } from "../lib/venueScope";
+import { requireVenueRole } from "../middleware/rbac";
 
 const router: IRouter = Router();
 
@@ -15,10 +17,10 @@ function parseRange(req: Request): { from?: Date; to?: Date } {
 async function resolveLocationId(req: Request): Promise<number | null | undefined> {
   const scope = await getWarehouseScope(req);
   if (!scope) return undefined;
-  return scope.role === "admin" && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
+  return isVenueAdmin(scope.role) && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
 }
 
-router.get("/kassa-analytics/summary", requireAuth(), async (req: Request, res: Response) => {
+router.get("/kassa-analytics/summary", requireAuth(), requireVenueRole("location_admin"), async (req: Request, res: Response) => {
   const locationId = await resolveLocationId(req);
   if (locationId === undefined) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const { from, to } = parseRange(req);

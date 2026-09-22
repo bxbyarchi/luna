@@ -16,8 +16,8 @@ function money(v: number) {
 }
 
 export default function KassaDashboard() {
-  const { canDo } = useCurrentUser();
-  const isAdmin = canDo("admin");
+  const { isVenueAdmin } = useCurrentUser();
+  const isAdmin = isVenueAdmin;
   const [locationFilter, setLocationFilter] = useState("");
   const { data: allLocations } = useListLocations();
   const venues = allLocations?.filter((l) => l.isVenue);

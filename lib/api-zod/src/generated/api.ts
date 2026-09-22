@@ -20,7 +20,15 @@ export const HealthCheckResponse = zod.object({
 export const GetMeResponse = zod.object({
   clerkUserId: zod.string(),
   email: zod.string(),
-  role: zod.enum(["admin", "manager", "accountant", "warehouse"]),
+  role: zod.enum([
+    "super_admin",
+    "warehouse_chief",
+    "manager",
+    "accountant",
+    "warehouse",
+    "location_admin",
+    "cashier",
+  ]),
   firstName: zod.string().nullish(),
   lastName: zod.string().nullish(),
   telegramChatId: zod.string().nullish(),
@@ -262,6 +270,8 @@ export const ListShiftsResponseItem = zod
     totalSalesCash: zod.string(),
     totalSalesCard: zod.string(),
     totalReturns: zod.string(),
+    totalCollected: zod.string(),
+    totalDeposited: zod.string(),
     notes: zod.string().nullish(),
     openedAt: zod.coerce.date(),
     closedAt: zod.coerce.date().nullish(),
@@ -269,6 +279,7 @@ export const ListShiftsResponseItem = zod
   .and(
     zod.object({
       registerName: zod.string().optional(),
+      houseId: zod.number().optional(),
       houseName: zod.string().optional(),
       locationId: zod.number().optional(),
       locationName: zod.string().nullish(),
@@ -304,6 +315,8 @@ export const GetShiftResponse = zod.object({
   totalSalesCash: zod.string(),
   totalSalesCard: zod.string(),
   totalReturns: zod.string(),
+  totalCollected: zod.string(),
+  totalDeposited: zod.string(),
   notes: zod.string().nullish(),
   openedAt: zod.coerce.date(),
   closedAt: zod.coerce.date().nullish(),
@@ -333,6 +346,8 @@ export const CloseShiftResponse = zod.object({
   totalSalesCash: zod.string(),
   totalSalesCard: zod.string(),
   totalReturns: zod.string(),
+  totalCollected: zod.string(),
+  totalDeposited: zod.string(),
   notes: zod.string().nullish(),
   openedAt: zod.coerce.date(),
   closedAt: zod.coerce.date().nullish(),
@@ -352,6 +367,10 @@ export const ListSalesResponseItem = zod
     id: zod.number(),
     shiftId: zod.number(),
     registerId: zod.number(),
+    subtotalAmount: zod.string(),
+    discountPercent: zod.string(),
+    discountAmount: zod.string(),
+    discountReason: zod.string().nullish(),
     totalAmount: zod.string(),
     paymentMethod: zod.enum(["cash", "card"]),
     status: zod.enum(["completed", "returned", "partially_returned"]),
@@ -372,8 +391,11 @@ export const ListSalesResponse = zod.array(ListSalesResponseItem);
 export const CreateSaleBody = zod.object({
   shiftId: zod.number(),
   paymentMethod: zod.enum(["cash", "card"]).optional(),
+  discountPercent: zod.number().optional(),
+  discountReason: zod.string().optional(),
   items: zod.array(
     zod.object({
+      productId: zod.number().optional(),
       name: zod.string(),
       quantity: zod.number(),
       pricePerUnit: zod.number(),
@@ -393,6 +415,10 @@ export const GetSaleResponse = zod
     id: zod.number(),
     shiftId: zod.number(),
     registerId: zod.number(),
+    subtotalAmount: zod.string(),
+    discountPercent: zod.string(),
+    discountAmount: zod.string(),
+    discountReason: zod.string().nullish(),
     totalAmount: zod.string(),
     paymentMethod: zod.enum(["cash", "card"]),
     status: zod.enum(["completed", "returned", "partially_returned"]),
@@ -405,6 +431,7 @@ export const GetSaleResponse = zod
           zod.object({
             id: zod.number(),
             saleId: zod.number(),
+            productId: zod.number().nullish(),
             name: zod.string(),
             quantity: zod.string(),
             pricePerUnit: zod.string(),
@@ -479,6 +506,101 @@ export const GetKassaAnalyticsSummaryResponse = zod.object({
       totalRevenue: zod.number(),
     }),
   ),
+});
+
+/**
+ * @summary List sellable products (menu) of a house, grouped for the POS grid
+ */
+export const ListProductsQueryParams = zod.object({
+  houseId: zod.coerce.number(),
+});
+
+export const ListProductsResponseItem = zod.object({
+  id: zod.number(),
+  houseId: zod.number(),
+  category: zod.string(),
+  name: zod.string(),
+  price: zod.string(),
+  isActive: zod.boolean(),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+export const ListProductsResponse = zod.array(ListProductsResponseItem);
+
+/**
+ * @summary Add a product to a house's menu (location_admin only)
+ */
+export const CreateProductBody = zod.object({
+  houseId: zod.number(),
+  category: zod.string(),
+  name: zod.string(),
+  price: zod.number(),
+  sortOrder: zod.number().optional(),
+});
+
+/**
+ * @summary Update a product (location_admin only)
+ */
+export const UpdateProductParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateProductBody = zod.object({
+  category: zod.string().optional(),
+  name: zod.string().optional(),
+  price: zod.number().optional(),
+  isActive: zod.boolean().optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateProductResponse = zod.object({
+  id: zod.number(),
+  houseId: zod.number(),
+  category: zod.string(),
+  name: zod.string(),
+  price: zod.string(),
+  isActive: zod.boolean(),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a product (location_admin only)
+ */
+export const DeleteProductParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List инкассация (cash collection/deposit) events for a shift
+ */
+export const ListCashMovementsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListCashMovementsResponseItem = zod.object({
+  id: zod.number(),
+  shiftId: zod.number(),
+  type: zod.enum(["collection", "deposit"]),
+  amount: zod.string(),
+  note: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+});
+export const ListCashMovementsResponse = zod.array(
+  ListCashMovementsResponseItem,
+);
+
+/**
+ * @summary Record a mid-shift cash collection or deposit (инкассация)
+ */
+export const CreateCashMovementParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateCashMovementBody = zod.object({
+  type: zod.enum(["collection", "deposit"]),
+  amount: zod.number(),
+  note: zod.string().optional(),
 });
 
 /**

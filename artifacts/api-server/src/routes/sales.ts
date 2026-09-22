@@ -3,17 +3,18 @@ import { requireAuth } from "../lib/requireAuth";
 import { db, salesTable, saleItemsTable, shiftsTable, registersTable, housesTable, locationsTable, returnsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { logAudit } from "../lib/auditLogger";
-import { getWarehouseScope, canAccessLocation } from "../lib/warehouseScope";
-import { getRegisterLocationId } from "../lib/venueScope";
+import { requireVenueRole } from "../middleware/rbac";
+import { getWarehouseScope } from "../lib/warehouseScope";
+import { isVenueAdmin, canAccessVenueLocation, getRegisterLocationId } from "../lib/venueScope";
 
 const router: IRouter = Router();
 
-type SaleItemInput = { name: string; quantity: number; pricePerUnit: number };
+type SaleItemInput = { productId?: number; name: string; quantity: number; pricePerUnit: number };
 
-router.get("/sales", requireAuth(), async (req: Request, res: Response) => {
+router.get("/sales", requireAuth(), requireVenueRole("cashier"), async (req: Request, res: Response) => {
   const scope = await getWarehouseScope(req);
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
-  const requestedLocation = scope.role === "admin" && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
+  const requestedLocation = isVenueAdmin(scope.role) && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
 
   const conditions = [];
   if (requestedLocation) conditions.push(eq(housesTable.locationId, requestedLocation));
@@ -28,6 +29,10 @@ router.get("/sales", requireAuth(), async (req: Request, res: Response) => {
       registerName: registersTable.name,
       houseName: housesTable.name,
       locationName: locationsTable.name,
+      subtotalAmount: salesTable.subtotalAmount,
+      discountPercent: salesTable.discountPercent,
+      discountAmount: salesTable.discountAmount,
+      discountReason: salesTable.discountReason,
       totalAmount: salesTable.totalAmount,
       paymentMethod: salesTable.paymentMethod,
       status: salesTable.status,
@@ -43,40 +48,50 @@ router.get("/sales", requireAuth(), async (req: Request, res: Response) => {
   res.json(rows);
 });
 
-router.get("/sales/:id", requireAuth(), async (req: Request, res: Response) => {
+router.get("/sales/:id", requireAuth(), requireVenueRole("cashier"), async (req: Request, res: Response) => {
   const scope = await getWarehouseScope(req);
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const id = Number(req.params.id);
   const sale = await db.query.salesTable.findFirst({ where: eq(salesTable.id, id) });
   if (!sale) { res.status(404).json({ error: "Not found" }); return; }
   const locationId = await getRegisterLocationId(sale.registerId);
-  if (!canAccessLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа" }); return; }
+  if (!canAccessVenueLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа" }); return; }
   const items = await db.select().from(saleItemsTable).where(eq(saleItemsTable.saleId, id));
   res.json({ ...sale, items });
 });
 
-router.post("/sales", requireAuth(), async (req: Request, res: Response) => {
+router.post("/sales", requireAuth(), requireVenueRole("cashier"), async (req: Request, res: Response) => {
   const scope = await getWarehouseScope(req);
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
-  const { shiftId, items, paymentMethod } = req.body as { shiftId: number; items: SaleItemInput[]; paymentMethod?: "cash" | "card" };
+  const { shiftId, items, paymentMethod, discountPercent, discountReason } = req.body as {
+    shiftId: number; items: SaleItemInput[]; paymentMethod?: "cash" | "card"; discountPercent?: number; discountReason?: string;
+  };
   if (!shiftId || !Array.isArray(items) || items.length === 0) { res.status(400).json({ error: "shiftId и items обязательны" }); return; }
   for (const it of items) {
     if (!it.name || !(Number(it.quantity) > 0) || !(Number(it.pricePerUnit) >= 0)) { res.status(400).json({ error: "Некорректная позиция продажи" }); return; }
   }
+  const discPct = Math.min(Math.max(Number(discountPercent) || 0, 0), 100);
+  if (discPct > 0 && !discountReason?.trim()) { res.status(400).json({ error: "Укажите причину скидки" }); return; }
 
   const shift = await db.query.shiftsTable.findFirst({ where: eq(shiftsTable.id, Number(shiftId)) });
   if (!shift) { res.status(404).json({ error: "Смена не найдена" }); return; }
   if (shift.status !== "open") { res.status(409).json({ error: "Смена закрыта" }); return; }
   const locationId = await getRegisterLocationId(shift.registerId);
-  if (!canAccessLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа к этой смене" }); return; }
+  if (!canAccessVenueLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа к этой смене" }); return; }
 
   const method = paymentMethod === "card" ? "card" : "cash";
-  const totalAmount = items.reduce((sum, it) => sum + Number(it.quantity) * Number(it.pricePerUnit), 0);
+  const subtotalAmount = items.reduce((sum, it) => sum + Number(it.quantity) * Number(it.pricePerUnit), 0);
+  const discountAmount = subtotalAmount * (discPct / 100);
+  const totalAmount = subtotalAmount - discountAmount;
 
   const sale = await db.transaction(async (tx) => {
     const [createdSale] = await tx.insert(salesTable).values({
       shiftId: shift.id,
       registerId: shift.registerId,
+      subtotalAmount: String(subtotalAmount),
+      discountPercent: String(discPct),
+      discountAmount: String(discountAmount),
+      discountReason: discPct > 0 ? discountReason?.trim() : null,
       totalAmount: String(totalAmount),
       paymentMethod: method,
       createdByClerkId: req.auth?.userId,
@@ -84,6 +99,7 @@ router.post("/sales", requireAuth(), async (req: Request, res: Response) => {
 
     await tx.insert(saleItemsTable).values(items.map((it) => ({
       saleId: createdSale.id,
+      productId: it.productId ?? null,
       name: it.name,
       quantity: String(it.quantity),
       pricePerUnit: String(it.pricePerUnit),
@@ -100,11 +116,11 @@ router.post("/sales", requireAuth(), async (req: Request, res: Response) => {
     return createdSale;
   });
 
-  await logAudit({ action: "create", entityType: "sale", entityId: sale.id, clerkUserId: req.auth?.userId, details: `${totalAmount} сом, ${method}` });
+  await logAudit({ action: "create", entityType: "sale", entityId: sale.id, clerkUserId: req.auth?.userId, details: `${totalAmount} сом, ${method}${discPct > 0 ? `, скидка ${discPct}%` : ""}` });
   res.status(201).json(sale);
 });
 
-router.post("/sales/:id/returns", requireAuth(), async (req: Request, res: Response) => {
+router.post("/sales/:id/returns", requireAuth(), requireVenueRole("cashier"), async (req: Request, res: Response) => {
   const scope = await getWarehouseScope(req);
   if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
   const saleId = Number(req.params.id);
@@ -114,7 +130,7 @@ router.post("/sales/:id/returns", requireAuth(), async (req: Request, res: Respo
   const sale = await db.query.salesTable.findFirst({ where: eq(salesTable.id, saleId) });
   if (!sale) { res.status(404).json({ error: "Продажа не найдена" }); return; }
   const locationId = await getRegisterLocationId(sale.registerId);
-  if (!canAccessLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа" }); return; }
+  if (!canAccessVenueLocation(scope, locationId)) { res.status(403).json({ error: "Нет доступа" }); return; }
 
   let result: { totalReturnAmount: number; status: string };
   try {

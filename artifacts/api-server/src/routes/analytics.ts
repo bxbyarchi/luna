@@ -3,14 +3,14 @@ import { requireAuth } from "../lib/requireAuth";
 import { db } from "@workspace/db";
 import { itemsTable, categoriesTable, receiptsTable, writeOffsTable, rentalsTable, warehouseStockTable } from "@workspace/db";
 import { eq, sql, gte, and } from "drizzle-orm";
-import { getWarehouseScope } from "../lib/warehouseScope";
+import { getWarehouseScope, isWarehouseAdmin } from "../lib/warehouseScope";
 
 const router: IRouter = Router();
 
 async function resolveScopeLocationId(req: Request): Promise<number | null | undefined> {
   const scope = await getWarehouseScope(req);
   if (!scope) return undefined;
-  return scope.role === "admin" && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
+  return isWarehouseAdmin(scope.role) && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
 }
 
 router.get("/analytics/summary", requireAuth(), async (req: Request, res: Response) => {

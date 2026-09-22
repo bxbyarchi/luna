@@ -9,7 +9,7 @@ async function requireAdmin(req: Request, res: Response): Promise<boolean> {
   const userId = req.auth?.userId;
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return false; }
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, userId) });
-  if (!user || user.role !== "admin") { res.status(403).json({ error: "Forbidden" }); return false; }
+  if (!user || user.role !== "super_admin") { res.status(403).json({ error: "Forbidden" }); return false; }
   return true;
 }
 

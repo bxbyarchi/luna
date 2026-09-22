@@ -107,17 +107,18 @@ function OrgSection() {
     onError: () => toast({ title: "Ошибка сохранения", variant: "destructive" }),
   });
 
+  const { isSuperAdmin } = useCurrentUser();
   if (isLoading) return <div className="py-8 text-center text-muted-foreground">Загрузка...</div>;
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Параметры организации</CardTitle><CardDescription>Настройки отображаются во всём интерфейсе системы.</CardDescription></CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2"><Label>Название системы / организации</Label><Input value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="Северное сияние" /></div>
+        <div className="space-y-2"><Label>Название системы / организации</Label><Input value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="Северное сияние" disabled={!isSuperAdmin} /></div>
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2"><Label>Валюта</Label><Select value={currency} onValueChange={setCurrency}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CURRENCIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-2"><Label>Часовой пояс</Label><Select value={timezone} onValueChange={setTimezone}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TIMEZONES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label>Валюта</Label><Select value={currency} onValueChange={setCurrency} disabled={!isSuperAdmin}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CURRENCIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label>Часовой пояс</Label><Select value={timezone} onValueChange={setTimezone} disabled={!isSuperAdmin}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TIMEZONES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div>
         </div>
-        <Button onClick={() => save.mutate()} disabled={save.isPending}><Save className="mr-2 h-4 w-4" />Сохранить</Button>
+        {isSuperAdmin && <Button onClick={() => save.mutate()} disabled={save.isPending}><Save className="mr-2 h-4 w-4" />Сохранить</Button>}
       </CardContent>
     </Card>
   );
@@ -156,18 +157,18 @@ function DemoDataSection() {
   );
 }
 
-function AddEmployeeDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (v: boolean) => void; onCreated: () => void }) {
+function AddEmployeeDialog({ open, onOpenChange, onCreated, isSuperAdmin }: { open: boolean; onOpenChange: (v: boolean) => void; onCreated: () => void; isSuperAdmin: boolean }) {
   const { toast } = useToast();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("warehouse");
+  const [role, setRole] = useState(isSuperAdmin ? "warehouse" : "cashier");
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function reset() { setFirstName(""); setLastName(""); setEmail(""); setPassword(""); setRole("warehouse"); setShowPwd(false); setError(null); }
+  function reset() { setFirstName(""); setLastName(""); setEmail(""); setPassword(""); setRole(isSuperAdmin ? "warehouse" : "cashier"); setShowPwd(false); setError(null); }
   async function handleCreate() {
     if (!email.trim() || !password.trim()) { setError("Email и пароль обязательны"); return; }
     if (password.length < 8) { setError("Пароль должен быть не менее 8 символов"); return; }
@@ -187,7 +188,11 @@ function AddEmployeeDialog({ open, onOpenChange, onCreated }: { open: boolean; o
           <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-xs">Имя</Label><Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Иван" /></div><div className="space-y-1.5"><Label className="text-xs">Фамилия</Label><Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Петров" /></div></div>
           <div className="space-y-1.5"><Label className="text-xs">Email *</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ivan@example.com" /></div>
           <div className="space-y-1.5"><Label className="text-xs">Временный пароль *</Label><div className="relative"><Input type={showPwd ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Минимум 8 символов" className="pr-10" /><button type="button" onClick={() => setShowPwd((p) => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">{showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
-          <div className="space-y-1.5"><Label className="text-xs">Роль</Label><Select value={role} onValueChange={setRole}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ROLE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1.5"><Label className="text-xs">Роль</Label>{isSuperAdmin ? (
+            <Select value={role} onValueChange={setRole}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ROLE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select>
+          ) : (
+            <Input value={ROLE_LABELS.cashier} disabled className="bg-muted" />
+          )}</div>
           {error && <p className="text-xs text-destructive bg-destructive/10 rounded px-3 py-2">{error}</p>}
           <div className="flex justify-end gap-2 pt-1"><Button variant="outline" onClick={() => { onOpenChange(false); reset(); }}>Отмена</Button><Button onClick={handleCreate} disabled={loading}>{loading ? "Создание..." : "Создать"}</Button></div>
         </div>
@@ -197,14 +202,14 @@ function AddEmployeeDialog({ open, onOpenChange, onCreated }: { open: boolean; o
 }
 
 function AccessSection() {
-  const { canDo, user: me } = useCurrentUser();
+  const { canManageUsers, isSuperAdmin, user: me } = useCurrentUser();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const { data: users, isLoading } = useQuery<SystemUser[]>({ queryKey: ["/api/admin/users"], queryFn: () => customFetch("/api/admin/users").then((r) => r as SystemUser[]), enabled: canDo("admin") });
-  const { data: locations } = useQuery<Location[]>({ queryKey: ["/api/locations"], queryFn: () => customFetch("/api/locations").then((r) => r as Location[]), enabled: canDo("admin") });
+  const { data: users, isLoading } = useQuery<SystemUser[]>({ queryKey: ["/api/admin/users"], queryFn: () => customFetch("/api/admin/users").then((r) => r as SystemUser[]), enabled: canManageUsers });
+  const { data: locations } = useQuery<Location[]>({ queryKey: ["/api/locations"], queryFn: () => customFetch("/api/locations").then((r) => r as Location[]), enabled: isSuperAdmin });
 
   const changeRole = useMutation({
     mutationFn: ({ id, role }: { id: number; role: string }) => customFetch(`/api/admin/users/${id}/role`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) }),
@@ -224,13 +229,13 @@ function AccessSection() {
     onError: (err: unknown) => { toast({ title: (err as { data?: { error?: string } })?.data?.error ?? "Ошибка удаления", variant: "destructive" }); setDeletingId(null); },
   });
 
-  if (!canDo("admin")) return <Card><CardContent className="py-8 text-center text-muted-foreground">Раздел доступен только Завхозу.</CardContent></Card>;
+  if (!canManageUsers) return <Card><CardContent className="py-8 text-center text-muted-foreground">Раздел доступен только Супер-админу и Админу площадки.</CardContent></Card>;
   const userList = users ?? [];
   const locationName = (id: number | null) => locations?.find((l) => l.id === id)?.name ?? "Не назначен";
 
   return (
     <>
-      <AddEmployeeDialog open={addOpen} onOpenChange={setAddOpen} onCreated={() => qc.invalidateQueries({ queryKey: ["/api/admin/users"] })} />
+      <AddEmployeeDialog open={addOpen} onOpenChange={setAddOpen} onCreated={() => qc.invalidateQueries({ queryKey: ["/api/admin/users"] })} isSuperAdmin={isSuperAdmin} />
       <Dialog open={deletingId !== null} onOpenChange={(v) => { if (!v) setDeletingId(null); }}>
         <DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Удалить пользователя?</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">{(() => { const u = userList.find((x) => x.id === deletingId); return `Удалить ${[u?.firstName, u?.lastName].filter(Boolean).join(" ") || u?.email}? Это действие нельзя отменить.`; })()}</p>
@@ -243,14 +248,18 @@ function AccessSection() {
         <CardContent className="p-0">
           {isLoading ? <div className="py-8 text-center text-muted-foreground text-sm">Загрузка...</div> : !userList.length ? <div className="py-8 text-center text-muted-foreground text-sm">Нет зарегистрированных пользователей.</div> : (
             <Table>
-              <TableHeader><TableRow><TableHead>Сотрудник</TableHead><TableHead>Роль</TableHead><TableHead>Склад</TableHead><TableHead>Зарегистрирован</TableHead><TableHead className="w-10" /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Сотрудник</TableHead><TableHead>Роль</TableHead>{isSuperAdmin && <TableHead>Склад</TableHead>}<TableHead>Зарегистрирован</TableHead><TableHead className="w-10" /></TableRow></TableHeader>
               <TableBody>{userList.map((u) => {
                 const displayName = [u.firstName, u.lastName].filter(Boolean).join(" ") || "—";
                 const isMe = u.clerkUserId === me?.clerkUserId;
                 return <TableRow key={u.id}>
                   <TableCell><div className="flex flex-col"><span className="font-medium text-sm">{displayName}{isMe && <span className="ml-2 text-xs text-muted-foreground">(вы)</span>}</span><span className="text-xs text-muted-foreground">{u.email}</span></div></TableCell>
-                  <TableCell><Select value={u.role} onValueChange={(role) => changeRole.mutate({ id: u.id, role })} disabled={isMe}><SelectTrigger className="w-36 h-8"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ROLE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></TableCell>
-                  <TableCell><Select value={u.locationId === null ? "none" : String(u.locationId)} onValueChange={(value) => changeLocation.mutate({ id: u.id, locationId: value === "none" ? null : Number(value) })} disabled={isMe || changeLocation.isPending}><SelectTrigger className="w-44 h-8"><Warehouse className="mr-2 h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Не назначен" /></SelectTrigger><SelectContent><SelectItem value="none">Не назначен</SelectItem>{(locations ?? []).map((location) => <SelectItem key={location.id} value={String(location.id)}>{location.name}</SelectItem>)}</SelectContent></Select></TableCell>
+                  <TableCell>{isSuperAdmin ? (
+                    <Select value={u.role} onValueChange={(role) => changeRole.mutate({ id: u.id, role })} disabled={isMe}><SelectTrigger className="w-36 h-8"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ROLE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
+                  ) : (
+                    <span className="text-sm">{ROLE_LABELS[u.role] ?? u.role}</span>
+                  )}</TableCell>
+                  {isSuperAdmin && <TableCell><Select value={u.locationId === null ? "none" : String(u.locationId)} onValueChange={(value) => changeLocation.mutate({ id: u.id, locationId: value === "none" ? null : Number(value) })} disabled={isMe || changeLocation.isPending}><SelectTrigger className="w-44 h-8"><Warehouse className="mr-2 h-4 w-4 text-muted-foreground" /><SelectValue placeholder="Не назначен" /></SelectTrigger><SelectContent><SelectItem value="none">Не назначен</SelectItem>{(locations ?? []).map((location) => <SelectItem key={location.id} value={String(location.id)}>{location.name}</SelectItem>)}</SelectContent></Select></TableCell>}
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{new Date(u.createdAt).toLocaleDateString("ru-RU")}</TableCell>
                   <TableCell>{!isMe && <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeletingId(u.id)}><Trash2 className="h-4 w-4" /></Button>}</TableCell>
                 </TableRow>;
@@ -259,7 +268,7 @@ function AccessSection() {
           )}
         </CardContent>
       </Card>
-      <div className="rounded-lg bg-muted/50 border p-4 text-xs text-muted-foreground space-y-1"><p className="font-medium text-foreground">Правило доступа</p><p>Кладовщик видит только назначенный ему склад.</p><p>Завхоз видит все семь складов и может менять назначения.</p><p>Если склад не назначен, сотрудник не получает доступ к складским остаткам.</p></div>
+      <div className="rounded-lg bg-muted/50 border p-4 text-xs text-muted-foreground space-y-1"><p className="font-medium text-foreground">Правило доступа</p><p>Кладовщик видит только назначенный ему склад.</p><p>Супер-админ и Завхоз видят все склады и могут менять назначения.</p><p>Админ площадки может создавать и удалять только кассиров своей площадки.</p><p>Если склад не назначен, сотрудник не получает доступ к складским остаткам.</p></div>
     </>
   );
 }
@@ -288,9 +297,9 @@ function TelegramSection() {
 }
 
 export default function Settings() {
-  const { canDo } = useCurrentUser();
+  const { canManageUsers, isSuperAdmin } = useCurrentUser();
   return <div className="space-y-6 max-w-4xl"><div><h1 className="text-2xl font-bold tracking-tight">Настройки</h1><p className="text-muted-foreground text-sm">Управление профилем, организацией и доступом.</p></div>
-    <Tabs defaultValue="profile"><TabsList className="grid grid-cols-5 w-full"><TabsTrigger value="profile" className="gap-2 text-xs sm:text-sm"><User className="h-4 w-4" /><span className="hidden sm:inline">Профиль</span></TabsTrigger><TabsTrigger value="org" className="gap-2 text-xs sm:text-sm"><Building2 className="h-4 w-4" /><span className="hidden sm:inline">Организация</span></TabsTrigger><TabsTrigger value="access" className="gap-2 text-xs sm:text-sm" disabled={!canDo("admin")}><Shield className="h-4 w-4" /><span className="hidden sm:inline">Доступ</span></TabsTrigger><TabsTrigger value="telegram" className="gap-2 text-xs sm:text-sm"><MessageCircle className="h-4 w-4" /><span className="hidden sm:inline">Telegram</span></TabsTrigger><TabsTrigger value="demo" className="gap-2 text-xs sm:text-sm" disabled={!canDo("admin")}><Sparkles className="h-4 w-4" /><span className="hidden sm:inline">Демо-данные</span></TabsTrigger></TabsList>
+    <Tabs defaultValue="profile"><TabsList className="grid grid-cols-5 w-full"><TabsTrigger value="profile" className="gap-2 text-xs sm:text-sm"><User className="h-4 w-4" /><span className="hidden sm:inline">Профиль</span></TabsTrigger><TabsTrigger value="org" className="gap-2 text-xs sm:text-sm"><Building2 className="h-4 w-4" /><span className="hidden sm:inline">Организация</span></TabsTrigger><TabsTrigger value="access" className="gap-2 text-xs sm:text-sm" disabled={!canManageUsers}><Shield className="h-4 w-4" /><span className="hidden sm:inline">Доступ</span></TabsTrigger><TabsTrigger value="telegram" className="gap-2 text-xs sm:text-sm"><MessageCircle className="h-4 w-4" /><span className="hidden sm:inline">Telegram</span></TabsTrigger><TabsTrigger value="demo" className="gap-2 text-xs sm:text-sm" disabled={!isSuperAdmin}><Sparkles className="h-4 w-4" /><span className="hidden sm:inline">Демо-данные</span></TabsTrigger></TabsList>
       <div className="mt-6"><TabsContent value="profile"><ProfileSection /></TabsContent><TabsContent value="org"><OrgSection /></TabsContent><TabsContent value="access"><AccessSection /></TabsContent><TabsContent value="telegram"><TelegramSection /></TabsContent><TabsContent value="demo"><DemoDataSection /></TabsContent></div>
     </Tabs>
   </div>;
