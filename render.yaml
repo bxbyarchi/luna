@@ -6,6 +6,7 @@ services:
     plan: free
     buildCommand: pnpm install --frozen-lockfile && pnpm run build
     startCommand: pnpm --filter @workspace/api-server start
+    healthCheckPath: /api/healthz
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -13,3 +14,19 @@ services:
           property: connectionString
       - key: NODE_ENV
         value: production
+
+      # Clerk. Без этих ключей clerkMiddleware() падает на КАЖДОМ запросе,
+      # и весь /api отдаёт 500 — включая /api/healthz. Раньше они жили в
+      # .replit ([userenv.shared]), который Render не читает.
+      # sync: false — значения задаются в дашборде Render, не в репозитории.
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      # Необязательный: позволяет проверять JWT локально, без похода в JWKS.
+      - key: CLERK_JWT_KEY
+        sync: false
+      # Нужен фронтенду во время СБОРКИ: Vite подставляет VITE_*-переменные
+      # в бандл. Без него приложение падает при загрузке (белый экран).
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false

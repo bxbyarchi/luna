@@ -8,7 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prestart": "pnpm --filter @workspace/db push"
+    "prestart": "pnpm --filter @workspace/db migrate"
   },
   "dependencies": {
     "@clerk/express": "^2.1.12",

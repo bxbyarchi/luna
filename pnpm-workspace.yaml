@@ -34,6 +34,16 @@ minimumReleaseAgeExclude:
   - '@replit/*'
   - stripe-replit-sync
 
+# @hookform/resolvers@3 не объявляет zod пиром, поэтому pnpm не кладёт zod
+# рядом с ним, и TypeScript подхватывает zod из скрытого hoist-каталога —
+# а там zod v4 (его тянет @scalar/openapi-types). Приложение использует
+# zod v3, из-за чего zodResolver() не проходил typecheck. Объявляем пир явно,
+# чтобы резолвер видел ту же версию zod, что и код.
+packageExtensions:
+  '@hookform/resolvers':
+    peerDependencies:
+      zod: '*'
+
 packages:
   - artifacts/*
   - lib/*
