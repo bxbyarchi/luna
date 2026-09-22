@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { useSearch, useLocation } from "wouter";
 import {
   useListItems, useCreateItem, useUpdateItem, useDeleteItem,
-  useListCategories,
+  useListCategories, useListLocations,
   getListItemsQueryKey, getListCategoriesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, Plus, Edit, Trash2, AlertTriangle, ImageOff } from "lucide-react";
+import { Search, Plus, Edit, Trash2, AlertTriangle, ImageOff, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { PhotoUploader } from "@/components/PhotoUploader";
@@ -41,19 +42,36 @@ type ItemRow = {
 };
 
 export default function Items() {
+  const searchString = useSearch();
+  const [, setLocation] = useLocation();
+  const initialCategoryId = new URLSearchParams(searchString).get("categoryId") ?? "";
+
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState(initialCategoryId);
+  const [warehouseFilter, setWarehouseFilter] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ItemRow | null>(null);
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { canDo } = useCurrentUser();
+  const isAdmin = canDo("admin");
 
+  const categoryId = categoryFilter ? Number(categoryFilter) : undefined;
+  const locationId = isAdmin && warehouseFilter ? Number(warehouseFilter) : undefined;
+  const listParams = { search: search || undefined, categoryId, locationId };
   const { data: items, isLoading } = useListItems(
-    { search: search || undefined },
-    { query: { queryKey: getListItemsQueryKey({ search: search || undefined }) } }
+    listParams,
+    { query: { queryKey: getListItemsQueryKey(listParams) } }
   );
   const { data: categories } = useListCategories({ query: { queryKey: getListCategoriesQueryKey() } });
+  const { data: warehouses } = useListLocations();
+  const activeCategory = categories?.find((c) => c.id === categoryId);
+
+  function changeCategoryFilter(value: string) {
+    setCategoryFilter(value);
+    setLocation(value ? `/items?categoryId=${value}` : "/items");
+  }
   const create = useCreateItem();
   const update = useUpdateItem();
   const remove = useDeleteItem();
@@ -128,8 +146,12 @@ export default function Items() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Позиции склада</h1>
-          <p className="text-muted-foreground text-sm">Все материальные ценности.</p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {activeCategory ? activeCategory.name : "Позиции склада"}
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            {activeCategory ? "Позиции этой категории." : "Все материальные ценности."}
+          </p>
         </div>
         {canDo("admin") && (
           <Button onClick={openCreate} data-testid="btn-create-item">
@@ -140,16 +162,39 @@ export default function Items() {
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Поиск позиций..."
-              className="pl-8"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              data-testid="input-search-items"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative max-w-sm flex-1 min-w-[200px]">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Поиск позиций..."
+                className="pl-8"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                data-testid="input-search-items"
+              />
+            </div>
+            <Select value={categoryFilter || "all"} onValueChange={(v) => changeCategoryFilter(v === "all" ? "" : v)}>
+              <SelectTrigger className="w-[200px]" data-testid="select-filter-category"><SelectValue placeholder="Все категории" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все категории</SelectItem>
+                {categories?.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {activeCategory && (
+              <Button variant="ghost" size="sm" onClick={() => changeCategoryFilter("")} data-testid="btn-clear-category-filter">
+                <X className="mr-1 h-3.5 w-3.5" /> Сбросить
+              </Button>
+            )}
+            {isAdmin && (
+              <Select value={warehouseFilter || "all"} onValueChange={(v) => setWarehouseFilter(v === "all" ? "" : v)}>
+                <SelectTrigger className="w-[200px]" data-testid="select-filter-warehouse"><SelectValue placeholder="Все склады" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все склады</SelectItem>
+                  {warehouses?.map((w) => <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardHeader>
 

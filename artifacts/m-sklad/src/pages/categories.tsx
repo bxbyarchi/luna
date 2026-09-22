@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import {
   useListCategories, useCreateCategory, useUpdateCategory, useDeleteCategory,
   getListCategoriesQueryKey,
@@ -47,6 +48,7 @@ type Category = { id: number; name: string; slug: string; description?: string |
 
 export default function Categories() {
   const { data: categories, isLoading } = useListCategories({ query: { queryKey: getListCategoriesQueryKey() } });
+  const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const queryClient = useQueryClient();
@@ -140,12 +142,18 @@ export default function Categories() {
                 <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Нет категорий</TableCell></TableRow>
               ) : (
                 (categories as Category[]).map((cat) => (
-                  <TableRow key={cat.id} data-testid={`row-category-${cat.id}`}>
+                  <TableRow
+                    key={cat.id}
+                    data-testid={`row-category-${cat.id}`}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setLocation(`/items?categoryId=${cat.id}`)}
+                    title={`Показать позиции категории «${cat.name}»`}
+                  >
                     <TableCell className="font-medium">{cat.name}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{cat.slug}</TableCell>
                     <TableCell className="text-muted-foreground">{cat.description ?? "—"}</TableCell>
                     {canDo("admin") && (
-                      <TableCell className="text-right">
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" onClick={() => openEdit(cat)} data-testid={`btn-edit-cat-${cat.id}`}><Edit className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(cat.id)} data-testid={`btn-delete-cat-${cat.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       </TableCell>

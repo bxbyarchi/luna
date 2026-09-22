@@ -1,6 +1,7 @@
-import { pgTable, serial, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { locationsTable } from "./locations";
 
 export const staffTable = pgTable("staff", {
   id: serial("id").primaryKey(),
@@ -8,6 +9,7 @@ export const staffTable = pgTable("staff", {
   position: text("position"),
   phone: text("phone"),
   isActive: boolean("is_active").notNull().default(true),
+  locationId: integer("location_id").references(() => locationsTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

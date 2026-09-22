@@ -77,7 +77,7 @@ export default function WriteOffs() {
 
   const { data: writeOffs, isLoading } = useListWriteOffs(undefined, { query: { queryKey: getListWriteOffsQueryKey() } });
   const { data: items } = useListItems(undefined, { query: { queryKey: getListItemsQueryKey() } });
-  const { data: staff } = useListStaff({ query: { queryKey: getListStaffQueryKey() } });
+  const { data: staff } = useListStaff(undefined, { query: { queryKey: getListStaffQueryKey() } });
   const create = useCreateWriteOff();
   const update = useUpdateWriteOff();
   const remove = useDeleteWriteOff();

@@ -14,6 +14,8 @@ tags:
     description: Auth context
   - name: categories
     description: Item categories
+  - name: locations
+    description: Warehouse locations
   - name: items
     description: Inventory items
   - name: receipts
@@ -132,6 +134,46 @@ paths:
         "204":
           description: Deleted
 
+  /locations:
+    get:
+      operationId: listLocations
+      tags: [locations]
+      summary: List active warehouse locations
+      responses:
+        "200":
+          description: Locations list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Location"
+
+  /locations/{id}:
+    patch:
+      operationId: updateLocation
+      tags: [locations]
+      summary: Update a location (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLocationBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Location"
+
   /items:
     get:
       operationId: listItems
@@ -150,6 +192,11 @@ paths:
           in: query
           schema:
             type: string
+        - name: locationId
+          in: query
+          description: Admin only — filter to a specific warehouse. Non-admins are always scoped to their own.
+          schema:
+            type: integer
       responses:
         "200":
           description: Items list
@@ -540,6 +587,11 @@ paths:
       operationId: listStaff
       tags: [staff]
       summary: List staff members
+      parameters:
+        - name: locationId
+          in: query
+          schema:
+            type: integer
       responses:
         "200":
           description: Staff list
@@ -891,6 +943,12 @@ components:
         firstName:
           type: ["string", "null"]
         lastName:
+          type: ["string", "null"]
+        telegramChatId:
+          type: ["string", "null"]
+        locationId:
+          type: ["integer", "null"]
+        locationName:
           type: ["string", "null"]
       required:
         - clerkUserId
@@ -1258,6 +1316,35 @@ components:
       required:
         - items
 
+    Location:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - code
+        - isActive
+        - createdAt
+
+    UpdateLocationBody:
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+
     StaffMember:
       type: object
       properties:
@@ -1271,6 +1358,10 @@ components:
           type: ["string", "null"]
         isActive:
           type: boolean
+        locationId:
+          type: ["integer", "null"]
+        locationName:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -1289,6 +1380,8 @@ components:
           type: ["string", "null"]
         phone:
           type: ["string", "null"]
+        locationId:
+          type: ["integer", "null"]
       required:
         - name
 
@@ -1303,6 +1396,8 @@ components:
           type: ["string", "null"]
         isActive:
           type: boolean
+        locationId:
+          type: ["integer", "null"]
 
     AnalyticsSummary:
       type: object

@@ -26,7 +26,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { name: "Настройки", href: "/settings", icon: Settings, roles: ["admin"], testId: "settings" },
   ];
   const closeSidebar = () => setSidebarOpen(false);
-  const assignedLocation = (user as any)?.locationName as string | null | undefined;
+  const assignedLocation = user?.locationName;
   const displayLocation = user?.role === "admin"
     ? "Все склады"
     : assignedLocation ?? "Склад не назначен";

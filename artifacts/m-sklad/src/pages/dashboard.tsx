@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, TrendingUp, TrendingDown, Package, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, KeyRound } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -47,6 +47,7 @@ function TrendBadge({ value }: { value: number }) {
 export default function Dashboard() {
   const [period, setPeriod] = useState<Period>("month");
   const { canDo } = useCurrentUser();
+  const [, setLocation] = useLocation();
 
   const { data: summary, isLoading: loadingSummary } = useGetAnalyticsSummary({
     query: { queryKey: getGetAnalyticsSummaryQueryKey() },
@@ -154,7 +155,18 @@ export default function Dashboard() {
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
-                  <Pie data={breakdown} dataKey="totalValue" nameKey="categoryName" cx="50%" cy="45%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                  <Pie
+                    data={breakdown}
+                    dataKey="totalValue"
+                    nameKey="categoryName"
+                    cx="50%"
+                    cy="45%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    cursor="pointer"
+                    onClick={(entry: { categoryId?: number | null }) => entry.categoryId != null && setLocation(`/items?categoryId=${entry.categoryId}`)}
+                  >
                     {breakdown.map((_: unknown, i: number) => (
                       <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                     ))}
