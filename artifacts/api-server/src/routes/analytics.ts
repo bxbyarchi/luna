@@ -1,44 +1,71 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "../lib/requireAuth";
 import { db } from "@workspace/db";
-import { itemsTable, categoriesTable, receiptsTable, writeOffsTable, rentalsTable } from "@workspace/db";
+import { itemsTable, categoriesTable, receiptsTable, writeOffsTable, rentalsTable, warehouseStockTable } from "@workspace/db";
 import { eq, sql, gte, and } from "drizzle-orm";
+import { getWarehouseScope } from "../lib/warehouseScope";
 
 const router: IRouter = Router();
 
+async function resolveScopeLocationId(req: Request): Promise<number | null | undefined> {
+  const scope = await getWarehouseScope(req);
+  if (!scope) return undefined;
+  return scope.role === "admin" && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
+}
+
 router.get("/analytics/summary", requireAuth(), async (req: Request, res: Response) => {
+  const locationId = await resolveScopeLocationId(req);
+  if (locationId === undefined) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
+
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-  const [itemStats] = await db
-    .select({
-      totalItems: sql<number>`COUNT(*)::int`,
-      totalStockValue: sql<number>`COALESCE(SUM(CAST(${itemsTable.currentStock} AS DECIMAL) * CAST(${itemsTable.pricePerUnit} AS DECIMAL)), 0)`,
-      lowStockCount: sql<number>`COUNT(CASE WHEN ${itemsTable.minThreshold} IS NOT NULL AND CAST(${itemsTable.currentStock} AS DECIMAL) <= CAST(${itemsTable.minThreshold} AS DECIMAL) THEN 1 END)::int`,
-    })
-    .from(itemsTable);
+  const [itemStats] = locationId
+    ? await db
+        .select({
+          totalItems: sql<number>`COUNT(DISTINCT ${itemsTable.id})::int`,
+          totalStockValue: sql<number>`COALESCE(SUM(CAST(${warehouseStockTable.currentStock} AS DECIMAL) * CAST(${itemsTable.pricePerUnit} AS DECIMAL)), 0)`,
+          lowStockCount: sql<number>`COUNT(DISTINCT CASE WHEN ${itemsTable.minThreshold} IS NOT NULL AND CAST(${warehouseStockTable.currentStock} AS DECIMAL) <= CAST(${itemsTable.minThreshold} AS DECIMAL) THEN ${itemsTable.id} END)::int`,
+        })
+        .from(itemsTable)
+        .innerJoin(warehouseStockTable, and(eq(warehouseStockTable.itemId, itemsTable.id), eq(warehouseStockTable.locationId, locationId)))
+    : await db
+        .select({
+          totalItems: sql<number>`COUNT(*)::int`,
+          totalStockValue: sql<number>`COALESCE(SUM(CAST(${itemsTable.currentStock} AS DECIMAL) * CAST(${itemsTable.pricePerUnit} AS DECIMAL)), 0)`,
+          lowStockCount: sql<number>`COUNT(CASE WHEN ${itemsTable.minThreshold} IS NOT NULL AND CAST(${itemsTable.currentStock} AS DECIMAL) <= CAST(${itemsTable.minThreshold} AS DECIMAL) THEN 1 END)::int`,
+        })
+        .from(itemsTable);
 
+  const receiptConditions = [gte(receiptsTable.createdAt, startOfMonth)];
+  if (locationId) receiptConditions.push(eq(receiptsTable.locationId, locationId));
   const [receiptStats] = await db
     .select({ total: sql<number>`COALESCE(SUM(CAST(${receiptsTable.totalCost} AS DECIMAL)), 0)` })
     .from(receiptsTable)
-    .where(gte(receiptsTable.createdAt, startOfMonth));
+    .where(and(...receiptConditions));
 
+  const receiptLastMonthConditions = [gte(receiptsTable.createdAt, startOfLastMonth), sql`${receiptsTable.createdAt} <= ${endOfLastMonth}`];
+  if (locationId) receiptLastMonthConditions.push(eq(receiptsTable.locationId, locationId));
   const [receiptLastMonth] = await db
     .select({ total: sql<number>`COALESCE(SUM(CAST(${receiptsTable.totalCost} AS DECIMAL)), 0)` })
     .from(receiptsTable)
-    .where(and(gte(receiptsTable.createdAt, startOfLastMonth), sql`${receiptsTable.createdAt} <= ${endOfLastMonth}`));
+    .where(and(...receiptLastMonthConditions));
 
+  const writeOffConditions = [gte(writeOffsTable.createdAt, startOfMonth)];
+  if (locationId) writeOffConditions.push(eq(writeOffsTable.locationId, locationId));
   const [writeOffStats] = await db
     .select({ total: sql<number>`COALESCE(SUM(CAST(${writeOffsTable.totalValue} AS DECIMAL)), 0)` })
     .from(writeOffsTable)
-    .where(gte(writeOffsTable.createdAt, startOfMonth));
+    .where(and(...writeOffConditions));
 
+  const writeOffLastMonthConditions = [gte(writeOffsTable.createdAt, startOfLastMonth), sql`${writeOffsTable.createdAt} <= ${endOfLastMonth}`];
+  if (locationId) writeOffLastMonthConditions.push(eq(writeOffsTable.locationId, locationId));
   const [writeOffLastMonth] = await db
     .select({ total: sql<number>`COALESCE(SUM(CAST(${writeOffsTable.totalValue} AS DECIMAL)), 0)` })
     .from(writeOffsTable)
-    .where(and(gte(writeOffsTable.createdAt, startOfLastMonth), sql`${writeOffsTable.createdAt} <= ${endOfLastMonth}`));
+    .where(and(...writeOffLastMonthConditions));
 
   const receiptsTrend = receiptLastMonth.total > 0
     ? ((receiptStats.total - receiptLastMonth.total) / receiptLastMonth.total) * 100
@@ -59,17 +86,33 @@ router.get("/analytics/summary", requireAuth(), async (req: Request, res: Respon
 });
 
 router.get("/analytics/category-breakdown", requireAuth(), async (req: Request, res: Response) => {
-  const rows = await db
-    .select({
-      categoryId: itemsTable.categoryId,
-      categoryName: categoriesTable.name,
-      totalValue: sql<number>`COALESCE(SUM(CAST(${itemsTable.currentStock} AS DECIMAL) * CAST(${itemsTable.pricePerUnit} AS DECIMAL)), 0)`,
-      itemCount: sql<number>`COUNT(*)::int`,
-    })
-    .from(itemsTable)
-    .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
-    .groupBy(itemsTable.categoryId, categoriesTable.name)
-    .orderBy(sql`SUM(CAST(${itemsTable.currentStock} AS DECIMAL) * CAST(${itemsTable.pricePerUnit} AS DECIMAL)) DESC`);
+  const locationId = await resolveScopeLocationId(req);
+  if (locationId === undefined) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
+
+  const rows = locationId
+    ? await db
+        .select({
+          categoryId: itemsTable.categoryId,
+          categoryName: categoriesTable.name,
+          totalValue: sql<number>`COALESCE(SUM(CAST(${warehouseStockTable.currentStock} AS DECIMAL) * CAST(${itemsTable.pricePerUnit} AS DECIMAL)), 0)`,
+          itemCount: sql<number>`COUNT(DISTINCT ${itemsTable.id})::int`,
+        })
+        .from(itemsTable)
+        .innerJoin(warehouseStockTable, and(eq(warehouseStockTable.itemId, itemsTable.id), eq(warehouseStockTable.locationId, locationId)))
+        .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
+        .groupBy(itemsTable.categoryId, categoriesTable.name)
+        .orderBy(sql`SUM(CAST(${warehouseStockTable.currentStock} AS DECIMAL) * CAST(${itemsTable.pricePerUnit} AS DECIMAL)) DESC`)
+    : await db
+        .select({
+          categoryId: itemsTable.categoryId,
+          categoryName: categoriesTable.name,
+          totalValue: sql<number>`COALESCE(SUM(CAST(${itemsTable.currentStock} AS DECIMAL) * CAST(${itemsTable.pricePerUnit} AS DECIMAL)), 0)`,
+          itemCount: sql<number>`COUNT(*)::int`,
+        })
+        .from(itemsTable)
+        .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
+        .groupBy(itemsTable.categoryId, categoriesTable.name)
+        .orderBy(sql`SUM(CAST(${itemsTable.currentStock} AS DECIMAL) * CAST(${itemsTable.pricePerUnit} AS DECIMAL)) DESC`);
 
   res.json(rows.map((r) => ({
     categoryId: r.categoryId,
@@ -80,20 +123,26 @@ router.get("/analytics/category-breakdown", requireAuth(), async (req: Request, 
 });
 
 router.get("/analytics/spending-over-time", requireAuth(), async (req: Request, res: Response) => {
+  const locationId = await resolveScopeLocationId(req);
+  if (locationId === undefined) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
+
   const period = String(req.query.period ?? "month");
   const trunc = period === "day" ? "day" : period === "week" ? "week" : period === "year" ? "year" : "month";
+  const locationFilter = locationId ? sql`AND location_id = ${locationId}` : sql``;
 
   const rows = await db.execute(
     sql`SELECT DATE_TRUNC(${trunc}, created_at) AS period,
     COALESCE(SUM(CAST(total_cost AS DECIMAL)), 0) AS receipts,
     0 AS write_offs
     FROM receipts
+    WHERE true ${locationFilter}
     GROUP BY period
     UNION ALL
     SELECT DATE_TRUNC(${trunc}, created_at) AS period,
     0 AS receipts,
     COALESCE(SUM(CAST(total_value AS DECIMAL)), 0) AS write_offs
     FROM write_offs
+    WHERE true ${locationFilter}
     GROUP BY period
     ORDER BY period ASC`
   );
@@ -114,7 +163,11 @@ router.get("/analytics/spending-over-time", requireAuth(), async (req: Request, 
 });
 
 router.get("/analytics/top-write-offs", requireAuth(), async (req: Request, res: Response) => {
+  const locationId = await resolveScopeLocationId(req);
+  if (locationId === undefined) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
+
   const limit = Math.min(Number(req.query.limit ?? 10), 50);
+  const conditions = locationId ? [eq(writeOffsTable.locationId, locationId)] : [];
 
   const rows = await db
     .select({
@@ -126,6 +179,7 @@ router.get("/analytics/top-write-offs", requireAuth(), async (req: Request, res:
     })
     .from(writeOffsTable)
     .leftJoin(itemsTable, eq(writeOffsTable.itemId, itemsTable.id))
+    .where(conditions.length ? and(...conditions) : undefined)
     .groupBy(writeOffsTable.itemId, itemsTable.name)
     .orderBy(sql`SUM(CAST(${writeOffsTable.totalValue} AS DECIMAL)) DESC`)
     .limit(limit);
@@ -140,19 +194,37 @@ router.get("/analytics/top-write-offs", requireAuth(), async (req: Request, res:
 });
 
 router.get("/analytics/low-stock", requireAuth(), async (req: Request, res: Response) => {
-  const rows = await db
-    .select({
-      id: itemsTable.id,
-      name: itemsTable.name,
-      categoryName: categoriesTable.name,
-      currentStock: itemsTable.currentStock,
-      minThreshold: itemsTable.minThreshold,
-      unit: itemsTable.unit,
-    })
-    .from(itemsTable)
-    .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
-    .where(sql`${itemsTable.minThreshold} IS NOT NULL AND CAST(${itemsTable.currentStock} AS DECIMAL) <= CAST(${itemsTable.minThreshold} AS DECIMAL)`)
-    .orderBy(sql`CAST(${itemsTable.currentStock} AS DECIMAL) / NULLIF(CAST(${itemsTable.minThreshold} AS DECIMAL), 0) ASC`);
+  const locationId = await resolveScopeLocationId(req);
+  if (locationId === undefined) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
+
+  const rows = locationId
+    ? await db
+        .select({
+          id: itemsTable.id,
+          name: itemsTable.name,
+          categoryName: categoriesTable.name,
+          currentStock: warehouseStockTable.currentStock,
+          minThreshold: itemsTable.minThreshold,
+          unit: itemsTable.unit,
+        })
+        .from(itemsTable)
+        .innerJoin(warehouseStockTable, and(eq(warehouseStockTable.itemId, itemsTable.id), eq(warehouseStockTable.locationId, locationId)))
+        .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
+        .where(sql`${itemsTable.minThreshold} IS NOT NULL AND CAST(${warehouseStockTable.currentStock} AS DECIMAL) <= CAST(${itemsTable.minThreshold} AS DECIMAL)`)
+        .orderBy(sql`CAST(${warehouseStockTable.currentStock} AS DECIMAL) / NULLIF(CAST(${itemsTable.minThreshold} AS DECIMAL), 0) ASC`)
+    : await db
+        .select({
+          id: itemsTable.id,
+          name: itemsTable.name,
+          categoryName: categoriesTable.name,
+          currentStock: itemsTable.currentStock,
+          minThreshold: itemsTable.minThreshold,
+          unit: itemsTable.unit,
+        })
+        .from(itemsTable)
+        .leftJoin(categoriesTable, eq(itemsTable.categoryId, categoriesTable.id))
+        .where(sql`${itemsTable.minThreshold} IS NOT NULL AND CAST(${itemsTable.currentStock} AS DECIMAL) <= CAST(${itemsTable.minThreshold} AS DECIMAL)`)
+        .orderBy(sql`CAST(${itemsTable.currentStock} AS DECIMAL) / NULLIF(CAST(${itemsTable.minThreshold} AS DECIMAL), 0) ASC`);
 
   res.json(rows.map((r) => ({
     id: r.id,
@@ -164,7 +236,11 @@ router.get("/analytics/low-stock", requireAuth(), async (req: Request, res: Resp
   })));
 });
 
+// rentals has no location_id yet — can't be scoped without a schema migration, so it stays global for now.
 router.get("/analytics/active-rentals", requireAuth(), async (req: Request, res: Response) => {
+  const scope = await getWarehouseScope(req);
+  if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
+
   const now = new Date();
   const rows = await db
     .select({

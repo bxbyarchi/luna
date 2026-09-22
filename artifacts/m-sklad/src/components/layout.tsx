@@ -6,8 +6,6 @@ import { LayoutDashboard, Package, Tags, ArrowDownToLine, ArrowUpFromLine, Clipb
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS } from "@/lib/roles";
 
-const LOCATIONS = ["Кой Таш", "Площадь", "Азия Молл", "Скай Парк", "Ош", "Лермонтова", "Прохладное"] as const;
-
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -31,9 +29,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const assignedLocation = (user as any)?.locationName as string | null | undefined;
   const displayLocation = user?.role === "admin"
     ? "Все склады"
-    : assignedLocation && LOCATIONS.includes(assignedLocation as typeof LOCATIONS[number])
-      ? assignedLocation
-      : "Склад не назначен";
+    : assignedLocation ?? "Склад не назначен";
 
   return <div className="flex min-h-[100dvh] bg-background">
     {sidebarOpen && <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={closeSidebar} aria-hidden="true" />}

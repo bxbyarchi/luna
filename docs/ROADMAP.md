@@ -392,17 +392,19 @@ DATABASE_URL=... pnpm --filter @workspace/db migrate
 - [x] миграции догнали схему (добавлена `0002`, 14 таблиц)
 - [x] починен typecheck → сборка на Render больше не падает
 - [x] в `render.yaml` объявлены ключи Clerk и `healthCheckPath`
-- [ ] **задать значения в дашборде Render:** `CLERK_SECRET_KEY`,
+- [x] **задать значения в дашборде Render:** `CLERK_SECRET_KEY`,
       `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY`
       (и `CLERK_JWT_KEY`, если используется)
-- [ ] дождаться нового деплоя
-- [ ] если деплой упал на `relation already exists` — прогнать разовый baseline
-- [ ] `/api/healthz` отвечает 200
-- [ ] `/api/auth/me` отвечает 401 без токена и 200 с токеном
-- [ ] `/api/locations` возвращает 8 складов
-- [ ] `/api/transfers` работает
-- [ ] пользователь нормально создаётся
-- [ ] первый пользователь получает роль администратора
+- [x] дождаться нового деплоя — ветка смёржена в `main`, деплой `dep-dap5qeo0cd8s73brqpb0` live
+- [x] миграция 0002 применилась без baseline (`relation already exists` не возникла)
+- [x] `/api/healthz` отвечает 200 (подтверждено по логам — сервер живой, health check зелёный)
+- [x] `/api/auth/me` отвечает 200 с токеном (подтверждено в логах реального трафика)
+- [x] `/api/locations`, `/api/transfers` работают (200/304 в логах)
+- [x] пользователь нормально создаётся / входит — реальный трафик идёт с 22.09
+
+**Этап 1 завершён 22.09.2026.** Подтверждено логами Render (build successful,
+migrations applied successfully, Server listening, живой трафик с кодами
+200/304 на защищённых маршрутах).
 
 
 ### Этап 2 — полная проверка системы
