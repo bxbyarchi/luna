@@ -16,6 +16,8 @@ tags:
     description: Item categories
   - name: locations
     description: Warehouse locations
+  - name: venue
+    description: Fair venue structure — houses and cash registers
   - name: items
     description: Inventory items
   - name: receipts
@@ -173,6 +175,162 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Location"
+
+  /houses:
+    get:
+      operationId: listHouses
+      tags: [venue]
+      summary: List fair houses (домики), scoped by warehouse/venue location
+      parameters:
+        - name: locationId
+          in: query
+          description: Admin only — filter to a specific venue location.
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Houses list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/House"
+    post:
+      operationId: createHouse
+      tags: [venue]
+      summary: Create a house (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHouseBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/House"
+
+  /houses/{id}:
+    patch:
+      operationId: updateHouse
+      tags: [venue]
+      summary: Update a house (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHouseBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/House"
+    delete:
+      operationId: deleteHouse
+      tags: [venue]
+      summary: Delete a house (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /registers:
+    get:
+      operationId: listRegisters
+      tags: [venue]
+      summary: List cash registers (кассы), scoped by warehouse/venue location
+      parameters:
+        - name: locationId
+          in: query
+          description: Admin only — filter to a specific venue location.
+          schema:
+            type: integer
+        - name: houseId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Registers list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Register"
+    post:
+      operationId: createRegister
+      tags: [venue]
+      summary: Create a register (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRegisterBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Register"
+
+  /registers/{id}:
+    patch:
+      operationId: updateRegister
+      tags: [venue]
+      summary: Update a register (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRegisterBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Register"
+    delete:
+      operationId: deleteRegister
+      tags: [venue]
+      summary: Delete a register (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
 
   /items:
     get:
@@ -1338,6 +1496,101 @@ components:
         - createdAt
 
     UpdateLocationBody:
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+
+    House:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        isActive:
+          type: boolean
+        locationId:
+          type: integer
+        locationName:
+          type: ["string", "null"]
+        registerCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - isActive
+        - locationId
+        - registerCount
+        - createdAt
+
+    CreateHouseBody:
+      type: object
+      properties:
+        name:
+          type: string
+        locationId:
+          type: integer
+        isActive:
+          type: boolean
+      required:
+        - name
+        - locationId
+
+    UpdateHouseBody:
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+
+    Register:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        isActive:
+          type: boolean
+        houseId:
+          type: integer
+        houseName:
+          type: ["string", "null"]
+        locationId:
+          type: ["integer", "null"]
+        locationName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - isActive
+        - houseId
+        - createdAt
+
+    CreateRegisterBody:
+      type: object
+      properties:
+        name:
+          type: string
+        houseId:
+          type: integer
+        isActive:
+          type: boolean
+      required:
+        - name
+        - houseId
+
+    UpdateRegisterBody:
       type: object
       properties:
         name:

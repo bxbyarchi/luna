@@ -11,3 +11,5 @@ export * from "./settings";
 export * from "./locations";
 export * from "./warehouseStock";
 export * from "./transfers";
+export * from "./houses";
+export * from "./registers";

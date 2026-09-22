@@ -17,6 +17,8 @@ import settingsRouter from "./settings";
 import locationsRouter from "./locations";
 import transfersRouter from "./transfers";
 import userLocationsRouter from "./userLocations";
+import housesRouter from "./houses";
+import registersRouter from "./registers";
 
 const router: IRouter = Router();
 
@@ -26,6 +28,8 @@ router.use(onboardingRouter);
 router.use(locationsRouter);
 router.use(transfersRouter);
 router.use(userLocationsRouter);
+router.use(housesRouter);
+router.use(registersRouter);
 router.use(categoriesRouter);
 router.use(itemsRouter);
 router.use(receiptsRouter);

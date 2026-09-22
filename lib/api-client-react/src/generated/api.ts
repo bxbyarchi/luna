@@ -23,9 +23,11 @@ import type {
   Category,
   CategoryBreakdownItem,
   CreateCategoryBody,
+  CreateHouseBody,
   CreateInventoryAuditBody,
   CreateItemBody,
   CreateReceiptBody,
+  CreateRegisterBody,
   CreateRentalBody,
   CreateStaffMemberBody,
   CreateWriteOffBody,
@@ -34,16 +36,20 @@ import type {
   GetAnalyticsSpendingOverTimeParams,
   GetAnalyticsTopWriteOffsParams,
   HealthStatus,
+  House,
   InventoryAudit,
   Item,
   ListAuditLogParams,
+  ListHousesParams,
   ListItemsParams,
   ListReceiptsParams,
+  ListRegistersParams,
   ListRentalsParams,
   ListStaffParams,
   ListWriteOffsParams,
   Location,
   Receipt,
+  Register,
   Rental,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
@@ -51,10 +57,12 @@ import type {
   StaffMember,
   TopWriteOffItem,
   UpdateCategoryBody,
+  UpdateHouseBody,
   UpdateInventoryAuditBody,
   UpdateItemBody,
   UpdateLocationBody,
   UpdateReceiptBody,
+  UpdateRegisterBody,
   UpdateRentalBody,
   UpdateStaffMemberBody,
   UpdateWriteOffBody,
@@ -700,6 +708,708 @@ export const useUpdateLocation = <
   TContext
 > => {
   return useMutation(getUpdateLocationMutationOptions(options));
+};
+
+/**
+ * @summary List fair houses (домики), scoped by warehouse/venue location
+ */
+export const getListHousesUrl = (params?: ListHousesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/houses?${stringifiedParams}`
+    : `/api/houses`;
+};
+
+export const listHouses = async (
+  params?: ListHousesParams,
+  options?: RequestInit,
+): Promise<House[]> => {
+  return customFetch<House[]>(getListHousesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListHousesQueryKey = (params?: ListHousesParams) => {
+  return [`/api/houses`, ...(params ? [params] : [])] as const;
+};
+
+export const getListHousesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHouses>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHousesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHouses>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListHousesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listHouses>>> = ({
+    signal,
+  }) => listHouses(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHouses>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHousesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHouses>>
+>;
+export type ListHousesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List fair houses (домики), scoped by warehouse/venue location
+ */
+
+export function useListHouses<
+  TData = Awaited<ReturnType<typeof listHouses>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListHousesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listHouses>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHousesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a house (admin only)
+ */
+export const getCreateHouseUrl = () => {
+  return `/api/houses`;
+};
+
+export const createHouse = async (
+  createHouseBody: CreateHouseBody,
+  options?: RequestInit,
+): Promise<House> => {
+  return customFetch<House>(getCreateHouseUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createHouseBody),
+  });
+};
+
+export const getCreateHouseMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHouse>>,
+    TError,
+    { data: BodyType<CreateHouseBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createHouse>>,
+  TError,
+  { data: BodyType<CreateHouseBody> },
+  TContext
+> => {
+  const mutationKey = ["createHouse"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createHouse>>,
+    { data: BodyType<CreateHouseBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createHouse(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateHouseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createHouse>>
+>;
+export type CreateHouseMutationBody = BodyType<CreateHouseBody>;
+export type CreateHouseMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a house (admin only)
+ */
+export const useCreateHouse = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createHouse>>,
+    TError,
+    { data: BodyType<CreateHouseBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createHouse>>,
+  TError,
+  { data: BodyType<CreateHouseBody> },
+  TContext
+> => {
+  return useMutation(getCreateHouseMutationOptions(options));
+};
+
+/**
+ * @summary Update a house (admin only)
+ */
+export const getUpdateHouseUrl = (id: number) => {
+  return `/api/houses/${id}`;
+};
+
+export const updateHouse = async (
+  id: number,
+  updateHouseBody: UpdateHouseBody,
+  options?: RequestInit,
+): Promise<House> => {
+  return customFetch<House>(getUpdateHouseUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateHouseBody),
+  });
+};
+
+export const getUpdateHouseMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateHouse>>,
+    TError,
+    { id: number; data: BodyType<UpdateHouseBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateHouse>>,
+  TError,
+  { id: number; data: BodyType<UpdateHouseBody> },
+  TContext
+> => {
+  const mutationKey = ["updateHouse"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateHouse>>,
+    { id: number; data: BodyType<UpdateHouseBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateHouse(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateHouseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateHouse>>
+>;
+export type UpdateHouseMutationBody = BodyType<UpdateHouseBody>;
+export type UpdateHouseMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a house (admin only)
+ */
+export const useUpdateHouse = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateHouse>>,
+    TError,
+    { id: number; data: BodyType<UpdateHouseBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateHouse>>,
+  TError,
+  { id: number; data: BodyType<UpdateHouseBody> },
+  TContext
+> => {
+  return useMutation(getUpdateHouseMutationOptions(options));
+};
+
+/**
+ * @summary Delete a house (admin only)
+ */
+export const getDeleteHouseUrl = (id: number) => {
+  return `/api/houses/${id}`;
+};
+
+export const deleteHouse = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteHouseUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteHouseMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteHouse>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteHouse>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteHouse"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteHouse>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteHouse(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteHouseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteHouse>>
+>;
+
+export type DeleteHouseMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a house (admin only)
+ */
+export const useDeleteHouse = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteHouse>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteHouse>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteHouseMutationOptions(options));
+};
+
+/**
+ * @summary List cash registers (кассы), scoped by warehouse/venue location
+ */
+export const getListRegistersUrl = (params?: ListRegistersParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/registers?${stringifiedParams}`
+    : `/api/registers`;
+};
+
+export const listRegisters = async (
+  params?: ListRegistersParams,
+  options?: RequestInit,
+): Promise<Register[]> => {
+  return customFetch<Register[]>(getListRegistersUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListRegistersQueryKey = (params?: ListRegistersParams) => {
+  return [`/api/registers`, ...(params ? [params] : [])] as const;
+};
+
+export const getListRegistersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRegisters>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListRegistersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listRegisters>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRegistersQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listRegisters>>> = ({
+    signal,
+  }) => listRegisters(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRegisters>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRegistersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRegisters>>
+>;
+export type ListRegistersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List cash registers (кассы), scoped by warehouse/venue location
+ */
+
+export function useListRegisters<
+  TData = Awaited<ReturnType<typeof listRegisters>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListRegistersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listRegisters>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRegistersQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a register (admin only)
+ */
+export const getCreateRegisterUrl = () => {
+  return `/api/registers`;
+};
+
+export const createRegister = async (
+  createRegisterBody: CreateRegisterBody,
+  options?: RequestInit,
+): Promise<Register> => {
+  return customFetch<Register>(getCreateRegisterUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createRegisterBody),
+  });
+};
+
+export const getCreateRegisterMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRegister>>,
+    TError,
+    { data: BodyType<CreateRegisterBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRegister>>,
+  TError,
+  { data: BodyType<CreateRegisterBody> },
+  TContext
+> => {
+  const mutationKey = ["createRegister"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRegister>>,
+    { data: BodyType<CreateRegisterBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createRegister(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRegisterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRegister>>
+>;
+export type CreateRegisterMutationBody = BodyType<CreateRegisterBody>;
+export type CreateRegisterMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a register (admin only)
+ */
+export const useCreateRegister = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRegister>>,
+    TError,
+    { data: BodyType<CreateRegisterBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRegister>>,
+  TError,
+  { data: BodyType<CreateRegisterBody> },
+  TContext
+> => {
+  return useMutation(getCreateRegisterMutationOptions(options));
+};
+
+/**
+ * @summary Update a register (admin only)
+ */
+export const getUpdateRegisterUrl = (id: number) => {
+  return `/api/registers/${id}`;
+};
+
+export const updateRegister = async (
+  id: number,
+  updateRegisterBody: UpdateRegisterBody,
+  options?: RequestInit,
+): Promise<Register> => {
+  return customFetch<Register>(getUpdateRegisterUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateRegisterBody),
+  });
+};
+
+export const getUpdateRegisterMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRegister>>,
+    TError,
+    { id: number; data: BodyType<UpdateRegisterBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRegister>>,
+  TError,
+  { id: number; data: BodyType<UpdateRegisterBody> },
+  TContext
+> => {
+  const mutationKey = ["updateRegister"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRegister>>,
+    { id: number; data: BodyType<UpdateRegisterBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateRegister(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRegisterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRegister>>
+>;
+export type UpdateRegisterMutationBody = BodyType<UpdateRegisterBody>;
+export type UpdateRegisterMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a register (admin only)
+ */
+export const useUpdateRegister = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRegister>>,
+    TError,
+    { id: number; data: BodyType<UpdateRegisterBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateRegister>>,
+  TError,
+  { id: number; data: BodyType<UpdateRegisterBody> },
+  TContext
+> => {
+  return useMutation(getUpdateRegisterMutationOptions(options));
+};
+
+/**
+ * @summary Delete a register (admin only)
+ */
+export const getDeleteRegisterUrl = (id: number) => {
+  return `/api/registers/${id}`;
+};
+
+export const deleteRegister = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteRegisterUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteRegisterMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRegister>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRegister>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteRegister"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRegister>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteRegister(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRegisterMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRegister>>
+>;
+
+export type DeleteRegisterMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a register (admin only)
+ */
+export const useDeleteRegister = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRegister>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRegister>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteRegisterMutationOptions(options));
 };
 
 /**

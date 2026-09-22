@@ -260,6 +260,53 @@ export interface UpdateLocationBody {
   isActive?: boolean;
 }
 
+export interface House {
+  id: number;
+  name: string;
+  isActive: boolean;
+  locationId: number;
+  /** @nullable */
+  locationName?: string | null;
+  registerCount: number;
+  createdAt: string;
+}
+
+export interface CreateHouseBody {
+  name: string;
+  locationId: number;
+  isActive?: boolean;
+}
+
+export interface UpdateHouseBody {
+  name?: string;
+  isActive?: boolean;
+}
+
+export interface Register {
+  id: number;
+  name: string;
+  isActive: boolean;
+  houseId: number;
+  /** @nullable */
+  houseName?: string | null;
+  /** @nullable */
+  locationId?: number | null;
+  /** @nullable */
+  locationName?: string | null;
+  createdAt: string;
+}
+
+export interface CreateRegisterBody {
+  name: string;
+  houseId: number;
+  isActive?: boolean;
+}
+
+export interface UpdateRegisterBody {
+  name?: string;
+  isActive?: boolean;
+}
+
 export interface StaffMember {
   id: number;
   name: string;
@@ -426,6 +473,21 @@ export interface ActiveRentalItem {
   plannedReturnAt: string;
   isOverdue: boolean;
 }
+
+export type ListHousesParams = {
+  /**
+   * Admin only — filter to a specific venue location.
+   */
+  locationId?: number;
+};
+
+export type ListRegistersParams = {
+  /**
+   * Admin only — filter to a specific venue location.
+   */
+  locationId?: number;
+  houseId?: number;
+};
 
 export type ListItemsParams = {
   categoryId?: number;

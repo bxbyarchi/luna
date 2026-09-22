@@ -109,6 +109,127 @@ export const UpdateLocationResponse = zod.object({
 });
 
 /**
+ * @summary List fair houses (домики), scoped by warehouse/venue location
+ */
+export const ListHousesQueryParams = zod.object({
+  locationId: zod.coerce
+    .number()
+    .optional()
+    .describe("Admin only — filter to a specific venue location."),
+});
+
+export const ListHousesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  isActive: zod.boolean(),
+  locationId: zod.number(),
+  locationName: zod.string().nullish(),
+  registerCount: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+export const ListHousesResponse = zod.array(ListHousesResponseItem);
+
+/**
+ * @summary Create a house (admin only)
+ */
+export const CreateHouseBody = zod.object({
+  name: zod.string(),
+  locationId: zod.number(),
+  isActive: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update a house (admin only)
+ */
+export const UpdateHouseParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateHouseBody = zod.object({
+  name: zod.string().optional(),
+  isActive: zod.boolean().optional(),
+});
+
+export const UpdateHouseResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  isActive: zod.boolean(),
+  locationId: zod.number(),
+  locationName: zod.string().nullish(),
+  registerCount: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a house (admin only)
+ */
+export const DeleteHouseParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List cash registers (кассы), scoped by warehouse/venue location
+ */
+export const ListRegistersQueryParams = zod.object({
+  locationId: zod.coerce
+    .number()
+    .optional()
+    .describe("Admin only — filter to a specific venue location."),
+  houseId: zod.coerce.number().optional(),
+});
+
+export const ListRegistersResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  isActive: zod.boolean(),
+  houseId: zod.number(),
+  houseName: zod.string().nullish(),
+  locationId: zod.number().nullish(),
+  locationName: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+});
+export const ListRegistersResponse = zod.array(ListRegistersResponseItem);
+
+/**
+ * @summary Create a register (admin only)
+ */
+export const CreateRegisterBody = zod.object({
+  name: zod.string(),
+  houseId: zod.number(),
+  isActive: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update a register (admin only)
+ */
+export const UpdateRegisterParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateRegisterBody = zod.object({
+  name: zod.string().optional(),
+  isActive: zod.boolean().optional(),
+});
+
+export const UpdateRegisterResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  isActive: zod.boolean(),
+  houseId: zod.number(),
+  houseName: zod.string().nullish(),
+  locationId: zod.number().nullish(),
+  locationName: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a register (admin only)
+ */
+export const DeleteRegisterParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List inventory items
  */
 export const ListItemsQueryParams = zod.object({
