@@ -35,7 +35,8 @@ export default function Houses() {
   const [locationFilter, setLocationFilter] = useState("");
   const listParams = { locationId: locationFilter ? Number(locationFilter) : undefined };
   const { data: houses, isLoading } = useListHouses(listParams, { query: { queryKey: getListHousesQueryKey(listParams) } });
-  const { data: locations } = useListLocations();
+  const { data: allLocations } = useListLocations();
+  const venues = allLocations?.filter((l) => l.isVenue);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<House | null>(null);
   const queryClient = useQueryClient();
@@ -98,7 +99,7 @@ export default function Houses() {
               <SelectTrigger className="w-[200px]" data-testid="select-filter-house-location"><SelectValue placeholder="Все площадки" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Все площадки</SelectItem>
-                {locations?.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
+                {venues?.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
@@ -171,7 +172,7 @@ export default function Houses() {
                   <Select value={field.value} onValueChange={field.onChange} disabled={!!editing}>
                     <FormControl><SelectTrigger data-testid="select-house-location"><SelectValue placeholder="Выбрать" /></SelectTrigger></FormControl>
                     <SelectContent>
-                      {locations?.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
+                      {venues?.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 <FormMessage /></FormItem>

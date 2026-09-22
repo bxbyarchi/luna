@@ -22,6 +22,7 @@ import type {
   AuditLogListResponse,
   Category,
   CategoryBreakdownItem,
+  CloseShiftBody,
   CreateCategoryBody,
   CreateHouseBody,
   CreateInventoryAuditBody,
@@ -29,30 +30,45 @@ import type {
   CreateReceiptBody,
   CreateRegisterBody,
   CreateRentalBody,
+  CreateReturnBody,
+  CreateSaleBody,
   CreateStaffMemberBody,
   CreateWriteOffBody,
   CurrentUser,
+  ExportKassaParams,
   ExportWriteOffsParams,
   GetAnalyticsSpendingOverTimeParams,
   GetAnalyticsTopWriteOffsParams,
+  GetKassaAnalyticsSummaryParams,
   HealthStatus,
   House,
   InventoryAudit,
   Item,
+  KassaAnalyticsSummary,
   ListAuditLogParams,
   ListHousesParams,
   ListItemsParams,
   ListReceiptsParams,
   ListRegistersParams,
   ListRentalsParams,
+  ListSalesParams,
+  ListShiftsParams,
   ListStaffParams,
   ListWriteOffsParams,
   Location,
+  OpenShiftBody,
   Receipt,
   Register,
   Rental,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
+  ReturnResult,
+  Sale,
+  SaleDetail,
+  SaleListItem,
+  SeedDemoData200,
+  Shift,
+  ShiftListItem,
   SpendingDataPoint,
   StaffMember,
   TopWriteOffItem,
@@ -1411,6 +1427,805 @@ export const useDeleteRegister = <
 > => {
   return useMutation(getDeleteRegisterMutationOptions(options));
 };
+
+/**
+ * @summary List cash register shifts, scoped by venue location
+ */
+export const getListShiftsUrl = (params?: ListShiftsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/shifts?${stringifiedParams}`
+    : `/api/shifts`;
+};
+
+export const listShifts = async (
+  params?: ListShiftsParams,
+  options?: RequestInit,
+): Promise<ShiftListItem[]> => {
+  return customFetch<ShiftListItem[]>(getListShiftsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListShiftsQueryKey = (params?: ListShiftsParams) => {
+  return [`/api/shifts`, ...(params ? [params] : [])] as const;
+};
+
+export const getListShiftsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listShifts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListShiftsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listShifts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListShiftsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listShifts>>> = ({
+    signal,
+  }) => listShifts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listShifts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListShiftsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listShifts>>
+>;
+export type ListShiftsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List cash register shifts, scoped by venue location
+ */
+
+export function useListShifts<
+  TData = Awaited<ReturnType<typeof listShifts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListShiftsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listShifts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListShiftsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Open a new shift on a register
+ */
+export const getOpenShiftUrl = () => {
+  return `/api/shifts`;
+};
+
+export const openShift = async (
+  openShiftBody: OpenShiftBody,
+  options?: RequestInit,
+): Promise<Shift> => {
+  return customFetch<Shift>(getOpenShiftUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(openShiftBody),
+  });
+};
+
+export const getOpenShiftMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openShift>>,
+    TError,
+    { data: BodyType<OpenShiftBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openShift>>,
+  TError,
+  { data: BodyType<OpenShiftBody> },
+  TContext
+> => {
+  const mutationKey = ["openShift"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openShift>>,
+    { data: BodyType<OpenShiftBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return openShift(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenShiftMutationResult = NonNullable<
+  Awaited<ReturnType<typeof openShift>>
+>;
+export type OpenShiftMutationBody = BodyType<OpenShiftBody>;
+export type OpenShiftMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Open a new shift on a register
+ */
+export const useOpenShift = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openShift>>,
+    TError,
+    { data: BodyType<OpenShiftBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof openShift>>,
+  TError,
+  { data: BodyType<OpenShiftBody> },
+  TContext
+> => {
+  return useMutation(getOpenShiftMutationOptions(options));
+};
+
+/**
+ * @summary Get a single shift
+ */
+export const getGetShiftUrl = (id: number) => {
+  return `/api/shifts/${id}`;
+};
+
+export const getShift = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Shift> => {
+  return customFetch<Shift>(getGetShiftUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetShiftQueryKey = (id: number) => {
+  return [`/api/shifts/${id}`] as const;
+};
+
+export const getGetShiftQueryOptions = <
+  TData = Awaited<ReturnType<typeof getShift>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getShift>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetShiftQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getShift>>> = ({
+    signal,
+  }) => getShift(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getShift>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetShiftQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getShift>>
+>;
+export type GetShiftQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get a single shift
+ */
+
+export function useGetShift<
+  TData = Awaited<ReturnType<typeof getShift>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getShift>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetShiftQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Close a shift with counted cash (Z-report)
+ */
+export const getCloseShiftUrl = (id: number) => {
+  return `/api/shifts/${id}/close`;
+};
+
+export const closeShift = async (
+  id: number,
+  closeShiftBody: CloseShiftBody,
+  options?: RequestInit,
+): Promise<Shift> => {
+  return customFetch<Shift>(getCloseShiftUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(closeShiftBody),
+  });
+};
+
+export const getCloseShiftMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closeShift>>,
+    TError,
+    { id: number; data: BodyType<CloseShiftBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof closeShift>>,
+  TError,
+  { id: number; data: BodyType<CloseShiftBody> },
+  TContext
+> => {
+  const mutationKey = ["closeShift"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof closeShift>>,
+    { id: number; data: BodyType<CloseShiftBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return closeShift(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CloseShiftMutationResult = NonNullable<
+  Awaited<ReturnType<typeof closeShift>>
+>;
+export type CloseShiftMutationBody = BodyType<CloseShiftBody>;
+export type CloseShiftMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Close a shift with counted cash (Z-report)
+ */
+export const useCloseShift = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof closeShift>>,
+    TError,
+    { id: number; data: BodyType<CloseShiftBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof closeShift>>,
+  TError,
+  { id: number; data: BodyType<CloseShiftBody> },
+  TContext
+> => {
+  return useMutation(getCloseShiftMutationOptions(options));
+};
+
+/**
+ * @summary List sales, scoped by venue location
+ */
+export const getListSalesUrl = (params?: ListSalesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/sales?${stringifiedParams}`
+    : `/api/sales`;
+};
+
+export const listSales = async (
+  params?: ListSalesParams,
+  options?: RequestInit,
+): Promise<SaleListItem[]> => {
+  return customFetch<SaleListItem[]>(getListSalesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSalesQueryKey = (params?: ListSalesParams) => {
+  return [`/api/sales`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSalesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSales>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSalesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSales>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSalesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSales>>> = ({
+    signal,
+  }) => listSales(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSales>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSalesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSales>>
+>;
+export type ListSalesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List sales, scoped by venue location
+ */
+
+export function useListSales<
+  TData = Awaited<ReturnType<typeof listSales>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSalesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSales>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSalesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Record a sale within an open shift
+ */
+export const getCreateSaleUrl = () => {
+  return `/api/sales`;
+};
+
+export const createSale = async (
+  createSaleBody: CreateSaleBody,
+  options?: RequestInit,
+): Promise<Sale> => {
+  return customFetch<Sale>(getCreateSaleUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createSaleBody),
+  });
+};
+
+export const getCreateSaleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSale>>,
+    TError,
+    { data: BodyType<CreateSaleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSale>>,
+  TError,
+  { data: BodyType<CreateSaleBody> },
+  TContext
+> => {
+  const mutationKey = ["createSale"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSale>>,
+    { data: BodyType<CreateSaleBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSale(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSaleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSale>>
+>;
+export type CreateSaleMutationBody = BodyType<CreateSaleBody>;
+export type CreateSaleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record a sale within an open shift
+ */
+export const useCreateSale = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSale>>,
+    TError,
+    { data: BodyType<CreateSaleBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSale>>,
+  TError,
+  { data: BodyType<CreateSaleBody> },
+  TContext
+> => {
+  return useMutation(getCreateSaleMutationOptions(options));
+};
+
+/**
+ * @summary Get a sale with its line items
+ */
+export const getGetSaleUrl = (id: number) => {
+  return `/api/sales/${id}`;
+};
+
+export const getSale = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SaleDetail> => {
+  return customFetch<SaleDetail>(getGetSaleUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSaleQueryKey = (id: number) => {
+  return [`/api/sales/${id}`] as const;
+};
+
+export const getGetSaleQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSale>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getSale>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSaleQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSale>>> = ({
+    signal,
+  }) => getSale(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getSale>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetSaleQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSale>>
+>;
+export type GetSaleQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get a sale with its line items
+ */
+
+export function useGetSale<
+  TData = Awaited<ReturnType<typeof getSale>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getSale>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSaleQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Register a return/refund/defect against a sale
+ */
+export const getCreateReturnUrl = (id: number) => {
+  return `/api/sales/${id}/returns`;
+};
+
+export const createReturn = async (
+  id: number,
+  createReturnBody: CreateReturnBody,
+  options?: RequestInit,
+): Promise<ReturnResult> => {
+  return customFetch<ReturnResult>(getCreateReturnUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createReturnBody),
+  });
+};
+
+export const getCreateReturnMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createReturn>>,
+    TError,
+    { id: number; data: BodyType<CreateReturnBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createReturn>>,
+  TError,
+  { id: number; data: BodyType<CreateReturnBody> },
+  TContext
+> => {
+  const mutationKey = ["createReturn"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createReturn>>,
+    { id: number; data: BodyType<CreateReturnBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createReturn(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateReturnMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createReturn>>
+>;
+export type CreateReturnMutationBody = BodyType<CreateReturnBody>;
+export type CreateReturnMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Register a return/refund/defect against a sale
+ */
+export const useCreateReturn = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createReturn>>,
+    TError,
+    { id: number; data: BodyType<CreateReturnBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createReturn>>,
+  TError,
+  { id: number; data: BodyType<CreateReturnBody> },
+  TContext
+> => {
+  return useMutation(getCreateReturnMutationOptions(options));
+};
+
+/**
+ * @summary Kassa dashboard summary — revenue, returns, breakdown by venue/house, top items
+ */
+export const getGetKassaAnalyticsSummaryUrl = (
+  params?: GetKassaAnalyticsSummaryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/kassa-analytics/summary?${stringifiedParams}`
+    : `/api/kassa-analytics/summary`;
+};
+
+export const getKassaAnalyticsSummary = async (
+  params?: GetKassaAnalyticsSummaryParams,
+  options?: RequestInit,
+): Promise<KassaAnalyticsSummary> => {
+  return customFetch<KassaAnalyticsSummary>(
+    getGetKassaAnalyticsSummaryUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetKassaAnalyticsSummaryQueryKey = (
+  params?: GetKassaAnalyticsSummaryParams,
+) => {
+  return [`/api/kassa-analytics/summary`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetKassaAnalyticsSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getKassaAnalyticsSummary>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetKassaAnalyticsSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getKassaAnalyticsSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetKassaAnalyticsSummaryQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getKassaAnalyticsSummary>>
+  > = ({ signal }) =>
+    getKassaAnalyticsSummary(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getKassaAnalyticsSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetKassaAnalyticsSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getKassaAnalyticsSummary>>
+>;
+export type GetKassaAnalyticsSummaryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Kassa dashboard summary — revenue, returns, breakdown by venue/house, top items
+ */
+
+export function useGetKassaAnalyticsSummary<
+  TData = Awaited<ReturnType<typeof getKassaAnalyticsSummary>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetKassaAnalyticsSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getKassaAnalyticsSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetKassaAnalyticsSummaryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List inventory items
@@ -4193,6 +5008,181 @@ export function useExportWriteOffs<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Export shifts and sales report as Excel file
+ */
+export const getExportKassaUrl = (params?: ExportKassaParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/export/kassa?${stringifiedParams}`
+    : `/api/export/kassa`;
+};
+
+export const exportKassa = async (
+  params?: ExportKassaParams,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getExportKassaUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportKassaQueryKey = (params?: ExportKassaParams) => {
+  return [`/api/export/kassa`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportKassaQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportKassa>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportKassaParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportKassa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getExportKassaQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportKassa>>> = ({
+    signal,
+  }) => exportKassa(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportKassa>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportKassaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportKassa>>
+>;
+export type ExportKassaQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Export shifts and sales report as Excel file
+ */
+
+export function useExportKassa<
+  TData = Awaited<ReturnType<typeof exportKassa>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportKassaParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportKassa>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportKassaQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Admin only — populate houses/registers/shifts/sales/warehouse items with demo data for review. Idempotent per house/register (skips ones that already have data).
+ */
+export const getSeedDemoDataUrl = () => {
+  return `/api/admin/seed-demo-data`;
+};
+
+export const seedDemoData = async (
+  options?: RequestInit,
+): Promise<SeedDemoData200> => {
+  return customFetch<SeedDemoData200>(getSeedDemoDataUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSeedDemoDataMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof seedDemoData>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof seedDemoData>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["seedDemoData"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof seedDemoData>>,
+    void
+  > = () => {
+    return seedDemoData(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SeedDemoDataMutationResult = NonNullable<
+  Awaited<ReturnType<typeof seedDemoData>>
+>;
+
+export type SeedDemoDataMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Admin only — populate houses/registers/shifts/sales/warehouse items with demo data for review. Idempotent per house/register (skips ones that already have data).
+ */
+export const useSeedDemoData = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof seedDemoData>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof seedDemoData>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getSeedDemoDataMutationOptions(options));
+};
 
 /**
  * @summary Request a presigned upload URL

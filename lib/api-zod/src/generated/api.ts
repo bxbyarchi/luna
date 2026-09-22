@@ -84,6 +84,11 @@ export const ListLocationsResponseItem = zod.object({
   name: zod.string(),
   code: zod.string(),
   isActive: zod.boolean(),
+  isVenue: zod
+    .boolean()
+    .describe(
+      "True if this location also hosts fair houses\/registers (not just a warehouse).",
+    ),
   createdAt: zod.coerce.date(),
 });
 export const ListLocationsResponse = zod.array(ListLocationsResponseItem);
@@ -98,6 +103,7 @@ export const UpdateLocationParams = zod.object({
 export const UpdateLocationBody = zod.object({
   name: zod.string().optional(),
   isActive: zod.boolean().optional(),
+  isVenue: zod.boolean().optional(),
 });
 
 export const UpdateLocationResponse = zod.object({
@@ -105,6 +111,11 @@ export const UpdateLocationResponse = zod.object({
   name: zod.string(),
   code: zod.string(),
   isActive: zod.boolean(),
+  isVenue: zod
+    .boolean()
+    .describe(
+      "True if this location also hosts fair houses\/registers (not just a warehouse).",
+    ),
   createdAt: zod.coerce.date(),
 });
 
@@ -227,6 +238,247 @@ export const UpdateRegisterResponse = zod.object({
  */
 export const DeleteRegisterParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary List cash register shifts, scoped by venue location
+ */
+export const ListShiftsQueryParams = zod.object({
+  locationId: zod.coerce.number().optional(),
+  registerId: zod.coerce.number().optional(),
+  status: zod.enum(["open", "closed"]).optional(),
+});
+
+export const ListShiftsResponseItem = zod
+  .object({
+    id: zod.number(),
+    registerId: zod.number(),
+    cashierName: zod.string(),
+    status: zod.enum(["open", "closed"]),
+    openingCash: zod.string(),
+    closingCashCounted: zod.string().nullish(),
+    expectedCash: zod.string().nullish(),
+    cashDifference: zod.string().nullish(),
+    totalSalesCash: zod.string(),
+    totalSalesCard: zod.string(),
+    totalReturns: zod.string(),
+    notes: zod.string().nullish(),
+    openedAt: zod.coerce.date(),
+    closedAt: zod.coerce.date().nullish(),
+  })
+  .and(
+    zod.object({
+      registerName: zod.string().optional(),
+      houseName: zod.string().optional(),
+      locationId: zod.number().optional(),
+      locationName: zod.string().nullish(),
+    }),
+  );
+export const ListShiftsResponse = zod.array(ListShiftsResponseItem);
+
+/**
+ * @summary Open a new shift on a register
+ */
+export const OpenShiftBody = zod.object({
+  registerId: zod.number(),
+  cashierName: zod.string(),
+  openingCash: zod.number().optional(),
+});
+
+/**
+ * @summary Get a single shift
+ */
+export const GetShiftParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetShiftResponse = zod.object({
+  id: zod.number(),
+  registerId: zod.number(),
+  cashierName: zod.string(),
+  status: zod.enum(["open", "closed"]),
+  openingCash: zod.string(),
+  closingCashCounted: zod.string().nullish(),
+  expectedCash: zod.string().nullish(),
+  cashDifference: zod.string().nullish(),
+  totalSalesCash: zod.string(),
+  totalSalesCard: zod.string(),
+  totalReturns: zod.string(),
+  notes: zod.string().nullish(),
+  openedAt: zod.coerce.date(),
+  closedAt: zod.coerce.date().nullish(),
+});
+
+/**
+ * @summary Close a shift with counted cash (Z-report)
+ */
+export const CloseShiftParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CloseShiftBody = zod.object({
+  closingCashCounted: zod.number(),
+  notes: zod.string().optional(),
+});
+
+export const CloseShiftResponse = zod.object({
+  id: zod.number(),
+  registerId: zod.number(),
+  cashierName: zod.string(),
+  status: zod.enum(["open", "closed"]),
+  openingCash: zod.string(),
+  closingCashCounted: zod.string().nullish(),
+  expectedCash: zod.string().nullish(),
+  cashDifference: zod.string().nullish(),
+  totalSalesCash: zod.string(),
+  totalSalesCard: zod.string(),
+  totalReturns: zod.string(),
+  notes: zod.string().nullish(),
+  openedAt: zod.coerce.date(),
+  closedAt: zod.coerce.date().nullish(),
+});
+
+/**
+ * @summary List sales, scoped by venue location
+ */
+export const ListSalesQueryParams = zod.object({
+  locationId: zod.coerce.number().optional(),
+  shiftId: zod.coerce.number().optional(),
+  registerId: zod.coerce.number().optional(),
+});
+
+export const ListSalesResponseItem = zod
+  .object({
+    id: zod.number(),
+    shiftId: zod.number(),
+    registerId: zod.number(),
+    totalAmount: zod.string(),
+    paymentMethod: zod.enum(["cash", "card"]),
+    status: zod.enum(["completed", "returned", "partially_returned"]),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      registerName: zod.string().optional(),
+      houseName: zod.string().optional(),
+      locationName: zod.string().nullish(),
+    }),
+  );
+export const ListSalesResponse = zod.array(ListSalesResponseItem);
+
+/**
+ * @summary Record a sale within an open shift
+ */
+export const CreateSaleBody = zod.object({
+  shiftId: zod.number(),
+  paymentMethod: zod.enum(["cash", "card"]).optional(),
+  items: zod.array(
+    zod.object({
+      name: zod.string(),
+      quantity: zod.number(),
+      pricePerUnit: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get a sale with its line items
+ */
+export const GetSaleParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetSaleResponse = zod
+  .object({
+    id: zod.number(),
+    shiftId: zod.number(),
+    registerId: zod.number(),
+    totalAmount: zod.string(),
+    paymentMethod: zod.enum(["cash", "card"]),
+    status: zod.enum(["completed", "returned", "partially_returned"]),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      items: zod
+        .array(
+          zod.object({
+            id: zod.number(),
+            saleId: zod.number(),
+            name: zod.string(),
+            quantity: zod.string(),
+            pricePerUnit: zod.string(),
+            totalPrice: zod.string(),
+            returnedQuantity: zod.string(),
+          }),
+        )
+        .optional(),
+    }),
+  );
+
+/**
+ * @summary Register a return/refund/defect against a sale
+ */
+export const CreateReturnParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateReturnBody = zod.object({
+  items: zod.array(
+    zod.object({
+      saleItemId: zod.number(),
+      quantity: zod.number(),
+    }),
+  ),
+  reason: zod.string().optional(),
+});
+
+export const CreateReturnResponse = zod.object({
+  totalReturnAmount: zod.number(),
+  status: zod.string(),
+});
+
+/**
+ * @summary Kassa dashboard summary — revenue, returns, breakdown by venue/house, top items
+ */
+export const GetKassaAnalyticsSummaryQueryParams = zod.object({
+  locationId: zod.coerce.number().optional(),
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+});
+
+export const GetKassaAnalyticsSummaryResponse = zod.object({
+  totalSalesCash: zod.number(),
+  totalSalesCard: zod.number(),
+  totalSales: zod.number(),
+  totalReturns: zod.number(),
+  netRevenue: zod.number(),
+  salesCount: zod.number(),
+  openShiftsCount: zod.number(),
+  byVenue: zod.array(
+    zod.object({
+      locationId: zod.number().nullish(),
+      locationName: zod.string(),
+      totalSales: zod.number(),
+      salesCount: zod.number(),
+    }),
+  ),
+  byHouse: zod.array(
+    zod.object({
+      houseId: zod.number(),
+      houseName: zod.string(),
+      locationName: zod.string(),
+      totalSales: zod.number(),
+      salesCount: zod.number(),
+    }),
+  ),
+  topItems: zod.array(
+    zod.object({
+      name: zod.string(),
+      totalQuantity: zod.number(),
+      totalRevenue: zod.number(),
+    }),
+  ),
 });
 
 /**
@@ -846,6 +1098,23 @@ export const ListAuditLogResponse = zod.object({
 export const ExportWriteOffsQueryParams = zod.object({
   from: zod.coerce.string().optional(),
   to: zod.coerce.string().optional(),
+});
+
+/**
+ * @summary Export shifts and sales report as Excel file
+ */
+export const ExportKassaQueryParams = zod.object({
+  locationId: zod.coerce.number().optional(),
+  from: zod.coerce.string().optional(),
+  to: zod.coerce.string().optional(),
+});
+
+/**
+ * @summary Admin only — populate houses/registers/shifts/sales/warehouse items with demo data for review. Idempotent per house/register (skips ones that already have data).
+ */
+export const SeedDemoDataResponse = zod.object({
+  ok: zod.boolean().optional(),
+  summary: zod.record(zod.string(), zod.number()).optional(),
 });
 
 /**

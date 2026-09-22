@@ -13,3 +13,5 @@ export * from "./warehouseStock";
 export * from "./transfers";
 export * from "./houses";
 export * from "./registers";
+export * from "./shifts";
+export * from "./sales";

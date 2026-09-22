@@ -252,12 +252,15 @@ export interface Location {
   name: string;
   code: string;
   isActive: boolean;
+  /** True if this location also hosts fair houses/registers (not just a warehouse). */
+  isVenue: boolean;
   createdAt: string;
 }
 
 export interface UpdateLocationBody {
   name?: string;
   isActive?: boolean;
+  isVenue?: boolean;
 }
 
 export interface House {
@@ -305,6 +308,171 @@ export interface CreateRegisterBody {
 export interface UpdateRegisterBody {
   name?: string;
   isActive?: boolean;
+}
+
+export type ShiftStatus = (typeof ShiftStatus)[keyof typeof ShiftStatus];
+
+export const ShiftStatus = {
+  open: "open",
+  closed: "closed",
+} as const;
+
+export interface Shift {
+  id: number;
+  registerId: number;
+  cashierName: string;
+  status: ShiftStatus;
+  openingCash: string;
+  /** @nullable */
+  closingCashCounted?: string | null;
+  /** @nullable */
+  expectedCash?: string | null;
+  /** @nullable */
+  cashDifference?: string | null;
+  totalSalesCash: string;
+  totalSalesCard: string;
+  totalReturns: string;
+  /** @nullable */
+  notes?: string | null;
+  openedAt: string;
+  /** @nullable */
+  closedAt?: string | null;
+}
+
+export type ShiftListItem = Shift & {
+  registerName?: string;
+  houseName?: string;
+  locationId?: number;
+  /** @nullable */
+  locationName?: string | null;
+};
+
+export interface OpenShiftBody {
+  registerId: number;
+  cashierName: string;
+  openingCash?: number;
+}
+
+export interface CloseShiftBody {
+  closingCashCounted: number;
+  notes?: string;
+}
+
+export interface SaleItemInput {
+  name: string;
+  quantity: number;
+  pricePerUnit: number;
+}
+
+export type CreateSaleBodyPaymentMethod =
+  (typeof CreateSaleBodyPaymentMethod)[keyof typeof CreateSaleBodyPaymentMethod];
+
+export const CreateSaleBodyPaymentMethod = {
+  cash: "cash",
+  card: "card",
+} as const;
+
+export interface CreateSaleBody {
+  shiftId: number;
+  paymentMethod?: CreateSaleBodyPaymentMethod;
+  items: SaleItemInput[];
+}
+
+export type SalePaymentMethod =
+  (typeof SalePaymentMethod)[keyof typeof SalePaymentMethod];
+
+export const SalePaymentMethod = {
+  cash: "cash",
+  card: "card",
+} as const;
+
+export type SaleStatus = (typeof SaleStatus)[keyof typeof SaleStatus];
+
+export const SaleStatus = {
+  completed: "completed",
+  returned: "returned",
+  partially_returned: "partially_returned",
+} as const;
+
+export interface Sale {
+  id: number;
+  shiftId: number;
+  registerId: number;
+  totalAmount: string;
+  paymentMethod: SalePaymentMethod;
+  status: SaleStatus;
+  createdAt: string;
+}
+
+export type SaleListItem = Sale & {
+  registerName?: string;
+  houseName?: string;
+  /** @nullable */
+  locationName?: string | null;
+};
+
+export interface SaleItem {
+  id: number;
+  saleId: number;
+  name: string;
+  quantity: string;
+  pricePerUnit: string;
+  totalPrice: string;
+  returnedQuantity: string;
+}
+
+export type SaleDetail = Sale & {
+  items?: SaleItem[];
+};
+
+export type CreateReturnBodyItemsItem = {
+  saleItemId: number;
+  quantity: number;
+};
+
+export interface CreateReturnBody {
+  items: CreateReturnBodyItemsItem[];
+  reason?: string;
+}
+
+export interface ReturnResult {
+  totalReturnAmount: number;
+  status: string;
+}
+
+export interface KassaVenueBreakdown {
+  /** @nullable */
+  locationId?: number | null;
+  locationName: string;
+  totalSales: number;
+  salesCount: number;
+}
+
+export interface KassaHouseBreakdown {
+  houseId: number;
+  houseName: string;
+  locationName: string;
+  totalSales: number;
+  salesCount: number;
+}
+
+export interface KassaTopItem {
+  name: string;
+  totalQuantity: number;
+  totalRevenue: number;
+}
+
+export interface KassaAnalyticsSummary {
+  totalSalesCash: number;
+  totalSalesCard: number;
+  totalSales: number;
+  totalReturns: number;
+  netRevenue: number;
+  salesCount: number;
+  openShiftsCount: number;
+  byVenue: KassaVenueBreakdown[];
+  byHouse: KassaHouseBreakdown[];
+  topItems: KassaTopItem[];
 }
 
 export interface StaffMember {
@@ -489,6 +657,32 @@ export type ListRegistersParams = {
   houseId?: number;
 };
 
+export type ListShiftsParams = {
+  locationId?: number;
+  registerId?: number;
+  status?: ListShiftsStatus;
+};
+
+export type ListShiftsStatus =
+  (typeof ListShiftsStatus)[keyof typeof ListShiftsStatus];
+
+export const ListShiftsStatus = {
+  open: "open",
+  closed: "closed",
+} as const;
+
+export type ListSalesParams = {
+  locationId?: number;
+  shiftId?: number;
+  registerId?: number;
+};
+
+export type GetKassaAnalyticsSummaryParams = {
+  locationId?: number;
+  from?: string;
+  to?: string;
+};
+
 export type ListItemsParams = {
   categoryId?: number;
   belowThreshold?: boolean;
@@ -542,6 +736,19 @@ export type ListAuditLogParams = {
 export type ExportWriteOffsParams = {
   from?: string;
   to?: string;
+};
+
+export type ExportKassaParams = {
+  locationId?: number;
+  from?: string;
+  to?: string;
+};
+
+export type SeedDemoData200Summary = { [key: string]: number };
+
+export type SeedDemoData200 = {
+  ok?: boolean;
+  summary?: SeedDemoData200Summary;
 };
 
 export type ListRentalsParams = {

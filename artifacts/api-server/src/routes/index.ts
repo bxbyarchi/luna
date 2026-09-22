@@ -19,6 +19,10 @@ import transfersRouter from "./transfers";
 import userLocationsRouter from "./userLocations";
 import housesRouter from "./houses";
 import registersRouter from "./registers";
+import shiftsRouter from "./shifts";
+import salesRouter from "./sales";
+import kassaAnalyticsRouter from "./kassaAnalytics";
+import devSeedRouter from "./devSeed";
 
 const router: IRouter = Router();
 
@@ -30,6 +34,10 @@ router.use(transfersRouter);
 router.use(userLocationsRouter);
 router.use(housesRouter);
 router.use(registersRouter);
+router.use(shiftsRouter);
+router.use(salesRouter);
+router.use(kassaAnalyticsRouter);
+router.use(devSeedRouter);
 router.use(categoriesRouter);
 router.use(itemsRouter);
 router.use(receiptsRouter);

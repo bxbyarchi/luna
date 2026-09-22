@@ -25,8 +25,8 @@ router.get("/locations", requireAuth(), async (_req, res: Response) => {
 router.patch("/locations/:id", requireAuth(), async (req: Request, res: Response) => {
   if (!(await requireAdmin(req, res))) return;
   const id = Number(req.params.id);
-  const { name, isActive } = req.body as { name?: string; isActive?: boolean };
-  const [updated] = await db.update(locationsTable).set({ ...(name !== undefined ? { name: name.trim() } : {}), ...(isActive !== undefined ? { isActive } : {}) }).where(eq(locationsTable.id, id)).returning();
+  const { name, isActive, isVenue } = req.body as { name?: string; isActive?: boolean; isVenue?: boolean };
+  const [updated] = await db.update(locationsTable).set({ ...(name !== undefined ? { name: name.trim() } : {}), ...(isActive !== undefined ? { isActive } : {}), ...(isVenue !== undefined ? { isVenue } : {}) }).where(eq(locationsTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "Location not found" }); return; }
   res.json(updated);
 });

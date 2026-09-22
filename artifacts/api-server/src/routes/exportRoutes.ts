@@ -8,10 +8,17 @@ import {
   staffTable,
   receiptsTable,
   rentalsTable,
+  shiftsTable,
+  salesTable,
+  saleItemsTable,
+  registersTable,
+  housesTable,
+  locationsTable,
 } from "@workspace/db";
 import { eq, sql, and, gte, lte, or } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { requireRole } from "../middleware/rbac";
+import { getWarehouseScope } from "../lib/warehouseScope";
 
 const router: IRouter = Router();
 
@@ -409,6 +416,151 @@ router.get("/reports/full", requireAuth(), requireRole("admin"), async (req: Req
   const dateTag = new Date().toISOString().slice(0, 10);
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="msklad-report-${dateTag}.xlsx"`);
+  res.send(buf);
+});
+
+router.get("/export/kassa", requireAuth(), requireRole("admin", "manager"), async (req: Request, res: Response) => {
+  const scope = await getWarehouseScope(req);
+  if (!scope) { res.status(403).json({ error: "Пользователь не настроен" }); return; }
+  const locationId = scope.role === "admin" && req.query.locationId ? Number(req.query.locationId) : scope.locationId;
+  const { from, to } = req.query;
+  const fromDate = from ? new Date(String(from)) : undefined;
+  const toDate = to ? new Date(String(to) + "T23:59:59") : undefined;
+
+  const shiftConditions = [];
+  if (locationId) shiftConditions.push(eq(housesTable.locationId, locationId));
+  if (fromDate) shiftConditions.push(gte(shiftsTable.openedAt, fromDate));
+  if (toDate) shiftConditions.push(lte(shiftsTable.openedAt, toDate));
+
+  const shiftRows = await db
+    .select({
+      registerName: registersTable.name,
+      houseName: housesTable.name,
+      locationName: locationsTable.name,
+      cashierName: shiftsTable.cashierName,
+      status: shiftsTable.status,
+      openingCash: shiftsTable.openingCash,
+      closingCashCounted: shiftsTable.closingCashCounted,
+      cashDifference: shiftsTable.cashDifference,
+      totalSalesCash: shiftsTable.totalSalesCash,
+      totalSalesCard: shiftsTable.totalSalesCard,
+      totalReturns: shiftsTable.totalReturns,
+      openedAt: shiftsTable.openedAt,
+      closedAt: shiftsTable.closedAt,
+    })
+    .from(shiftsTable)
+    .innerJoin(registersTable, eq(shiftsTable.registerId, registersTable.id))
+    .innerJoin(housesTable, eq(registersTable.houseId, housesTable.id))
+    .leftJoin(locationsTable, eq(housesTable.locationId, locationsTable.id))
+    .where(shiftConditions.length ? and(...shiftConditions) : undefined)
+    .orderBy(sql`${shiftsTable.openedAt} DESC`);
+
+  const saleConditions = [];
+  if (locationId) saleConditions.push(eq(housesTable.locationId, locationId));
+  if (fromDate) saleConditions.push(gte(salesTable.createdAt, fromDate));
+  if (toDate) saleConditions.push(lte(salesTable.createdAt, toDate));
+
+  const saleRows = await db
+    .select({
+      registerName: registersTable.name,
+      houseName: housesTable.name,
+      locationName: locationsTable.name,
+      itemName: saleItemsTable.name,
+      quantity: saleItemsTable.quantity,
+      pricePerUnit: saleItemsTable.pricePerUnit,
+      totalPrice: saleItemsTable.totalPrice,
+      paymentMethod: salesTable.paymentMethod,
+      status: salesTable.status,
+      createdAt: salesTable.createdAt,
+    })
+    .from(saleItemsTable)
+    .innerJoin(salesTable, eq(saleItemsTable.saleId, salesTable.id))
+    .innerJoin(registersTable, eq(salesTable.registerId, registersTable.id))
+    .innerJoin(housesTable, eq(registersTable.houseId, housesTable.id))
+    .leftJoin(locationsTable, eq(housesTable.locationId, locationsTable.id))
+    .where(saleConditions.length ? and(...saleConditions) : undefined)
+    .orderBy(sql`${salesTable.createdAt} DESC`);
+
+  const totalSales = shiftRows.reduce((s, r) => s + Number(r.totalSalesCash) + Number(r.totalSalesCard), 0);
+  const totalReturns = shiftRows.reduce((s, r) => s + Number(r.totalReturns), 0);
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Северное сияние";
+  wb.created = new Date();
+
+  const summarySheet = wb.addWorksheet("Итого");
+  summarySheet.columns = [{ key: "label", width: 38 }, { key: "value", width: 22 }];
+  const titleRow = summarySheet.addRow(["Отчёт по кассам «Северное сияние»", ""]);
+  summarySheet.mergeCells(titleRow.number, 1, titleRow.number, 2);
+  titleRow.getCell(1).font = { bold: true, size: 16, color: { argb: `FF${BRAND_HEADER_FILL}` } };
+  titleRow.height = 26;
+  const periodRow = summarySheet.addRow([`Период: ${from ? String(from) : "начало"} — ${to ? String(to) : "сегодня"}`, ""]);
+  summarySheet.mergeCells(periodRow.number, 1, periodRow.number, 2);
+  periodRow.getCell(1).font = { italic: true, color: { argb: "FF8A6F6A" } };
+  summarySheet.addRow([]);
+  for (const [label, value] of [["Выручка (наличные + безнал)", totalSales], ["Возвраты", totalReturns], ["Чистая выручка", totalSales - totalReturns]] as Array<[string, number]>) {
+    const row = summarySheet.addRow([label, value]);
+    row.getCell(1).font = { bold: true };
+    row.getCell(2).font = { bold: true, size: 12 };
+    row.getCell(2).numFmt = CURRENCY_FMT;
+    row.getCell(2).alignment = { horizontal: "right" };
+    row.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${BRAND_ACCENT_FILL}` } };
+      cell.border = { top: { style: "thin", color: { argb: `FF${BORDER_COLOR}` } }, bottom: { style: "thin", color: { argb: `FF${BORDER_COLOR}` } }, left: { style: "thin", color: { argb: `FF${BORDER_COLOR}` } }, right: { style: "thin", color: { argb: `FF${BORDER_COLOR}` } } };
+    });
+  }
+  summarySheet.addRow([]);
+  const countRow = summarySheet.addRow(["Смен за период", shiftRows.length]);
+  countRow.getCell(1).font = { bold: true };
+  countRow.getCell(2).alignment = { horizontal: "right" };
+
+  const shiftsSheet = wb.addWorksheet("Смены");
+  styleSheet(shiftsSheet, [
+    { header: "Касса", key: "registerName", width: 16 },
+    { header: "Домик", key: "houseName", width: 18 },
+    { header: "Площадка", key: "locationName", width: 16 },
+    { header: "Кассир", key: "cashierName", width: 18 },
+    { header: "Статус", key: "status", width: 12 },
+    { header: "На старте", key: "openingCash", width: 14, format: "currency" },
+    { header: "По факту", key: "closingCashCounted", width: 14, format: "currency" },
+    { header: "Расхождение", key: "cashDifference", width: 14, format: "currency" },
+    { header: "Продажи нал.", key: "totalSalesCash", width: 14, format: "currency" },
+    { header: "Продажи безнал", key: "totalSalesCard", width: 16, format: "currency" },
+    { header: "Возвраты", key: "totalReturns", width: 14, format: "currency" },
+    { header: "Открыта", key: "openedAt", width: 16 },
+    { header: "Закрыта", key: "closedAt", width: 16 },
+  ], shiftRows.map((r) => ({
+    registerName: r.registerName, houseName: r.houseName, locationName: r.locationName ?? "—",
+    cashierName: r.cashierName, status: r.status === "open" ? "Открыта" : "Закрыта",
+    openingCash: Number(r.openingCash), closingCashCounted: r.closingCashCounted != null ? Number(r.closingCashCounted) : "",
+    cashDifference: r.cashDifference != null ? Number(r.cashDifference) : "",
+    totalSalesCash: Number(r.totalSalesCash), totalSalesCard: Number(r.totalSalesCard), totalReturns: Number(r.totalReturns),
+    openedAt: fmt(r.openedAt), closedAt: r.closedAt ? fmt(r.closedAt) : "—",
+  })));
+
+  const salesSheet = wb.addWorksheet("Продажи");
+  styleSheet(salesSheet, [
+    { header: "Дата", key: "date", width: 12 },
+    { header: "Касса", key: "registerName", width: 14 },
+    { header: "Домик", key: "houseName", width: 16 },
+    { header: "Площадка", key: "locationName", width: 14 },
+    { header: "Товар", key: "itemName", width: 22 },
+    { header: "Кол-во", key: "quantity", width: 10, format: "integer" },
+    { header: "Цена", key: "pricePerUnit", width: 12, format: "currency" },
+    { header: "Сумма", key: "totalPrice", width: 14, format: "currency" },
+    { header: "Оплата", key: "paymentMethod", width: 12 },
+    { header: "Статус", key: "status", width: 16 },
+  ], saleRows.map((r) => ({
+    date: fmt(r.createdAt), registerName: r.registerName, houseName: r.houseName, locationName: r.locationName ?? "—",
+    itemName: r.itemName, quantity: Number(r.quantity), pricePerUnit: Number(r.pricePerUnit), totalPrice: Number(r.totalPrice),
+    paymentMethod: r.paymentMethod === "cash" ? "Наличные" : "Безнал",
+    status: r.status === "completed" ? "Оплачена" : r.status === "returned" ? "Возвращена" : "Частичный возврат",
+  })));
+
+  const buf = await buildBuffer(wb);
+  const dateTag = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="kassa-report-${dateTag}.xlsx"`);
   res.send(buf);
 });
 

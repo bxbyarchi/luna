@@ -1,0 +1,2 @@
+ALTER TABLE "locations" ADD COLUMN "is_venue" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+UPDATE "locations" SET "is_venue" = true WHERE "code" IN ('KOI_TASH', 'PLOSHAD', 'ASIA_MALL', 'SKY_PARK', 'OSH');

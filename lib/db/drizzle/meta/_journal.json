@@ -36,6 +36,20 @@
       "when": 1790079561420,
       "tag": "0004_curved_carlie_cooper",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790081200973,
+      "tag": "0005_sweet_micromacro",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790081308798,
+      "tag": "0006_even_surge",
+      "breakpoints": true
     }
   ]
 }

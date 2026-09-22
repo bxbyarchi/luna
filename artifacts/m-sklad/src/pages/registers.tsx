@@ -45,7 +45,8 @@ export default function Registers() {
   };
   const { data: registers, isLoading } = useListRegisters(listParams, { query: { queryKey: getListRegistersQueryKey(listParams) } });
   const { data: houses } = useListHouses();
-  const { data: locations } = useListLocations();
+  const { data: allLocations } = useListLocations();
+  const venues = allLocations?.filter((l) => l.isVenue);
   const activeHouse = houses?.find((h) => h.id === Number(houseFilter));
 
   const [open, setOpen] = useState(false);
@@ -121,7 +122,7 @@ export default function Registers() {
                 <SelectTrigger className="w-[200px]" data-testid="select-filter-register-location"><SelectValue placeholder="Все площадки" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Все площадки</SelectItem>
-                  {locations?.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
+                  {venues?.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             )}

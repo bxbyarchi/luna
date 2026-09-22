@@ -18,6 +18,8 @@ tags:
     description: Warehouse locations
   - name: venue
     description: Fair venue structure — houses and cash registers
+  - name: kassa
+    description: Cash register operations — shifts, sales, returns, analytics
   - name: items
     description: Inventory items
   - name: receipts
@@ -331,6 +333,213 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /shifts:
+    get:
+      operationId: listShifts
+      tags: [kassa]
+      summary: List cash register shifts, scoped by venue location
+      parameters:
+        - name: locationId
+          in: query
+          schema:
+            type: integer
+        - name: registerId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, closed]
+      responses:
+        "200":
+          description: Shifts list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShiftListItem"
+    post:
+      operationId: openShift
+      tags: [kassa]
+      summary: Open a new shift on a register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenShiftBody"
+      responses:
+        "201":
+          description: Opened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+
+  /shifts/{id}:
+    get:
+      operationId: getShift
+      tags: [kassa]
+      summary: Get a single shift
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Shift
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+
+  /shifts/{id}/close:
+    patch:
+      operationId: closeShift
+      tags: [kassa]
+      summary: Close a shift with counted cash (Z-report)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloseShiftBody"
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Shift"
+
+  /sales:
+    get:
+      operationId: listSales
+      tags: [kassa]
+      summary: List sales, scoped by venue location
+      parameters:
+        - name: locationId
+          in: query
+          schema:
+            type: integer
+        - name: shiftId
+          in: query
+          schema:
+            type: integer
+        - name: registerId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sales list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SaleListItem"
+    post:
+      operationId: createSale
+      tags: [kassa]
+      summary: Record a sale within an open shift
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSaleBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+
+  /sales/{id}:
+    get:
+      operationId: getSale
+      tags: [kassa]
+      summary: Get a sale with its line items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sale with items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaleDetail"
+
+  /sales/{id}/returns:
+    post:
+      operationId: createReturn
+      tags: [kassa]
+      summary: Register a return/refund/defect against a sale
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReturnBody"
+      responses:
+        "200":
+          description: Return recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnResult"
+
+  /kassa-analytics/summary:
+    get:
+      operationId: getKassaAnalyticsSummary
+      tags: [kassa]
+      summary: Kassa dashboard summary — revenue, returns, breakdown by venue/house, top items
+      parameters:
+        - name: locationId
+          in: query
+          schema:
+            type: integer
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KassaAnalyticsSummary"
 
   /items:
     get:
@@ -962,6 +1171,53 @@ paths:
                 type: string
                 format: binary
 
+  /export/kassa:
+    get:
+      operationId: exportKassa
+      tags: [kassa]
+      summary: Export shifts and sales report as Excel file
+      parameters:
+        - name: locationId
+          in: query
+          schema:
+            type: integer
+        - name: from
+          in: query
+          schema:
+            type: string
+        - name: to
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Excel file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /admin/seed-demo-data:
+    post:
+      operationId: seedDemoData
+      tags: [kassa]
+      summary: Admin only — populate houses/registers/shifts/sales/warehouse items with demo data for review. Idempotent per house/register (skips ones that already have data).
+      responses:
+        "200":
+          description: Seed summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  summary:
+                    type: object
+                    additionalProperties:
+                      type: integer
+
   /storage/uploads/request-url:
     post:
       operationId: requestUploadUrl
@@ -1485,6 +1741,9 @@ components:
           type: string
         isActive:
           type: boolean
+        isVenue:
+          type: boolean
+          description: True if this location also hosts fair houses/registers (not just a warehouse).
         createdAt:
           type: string
           format: date-time
@@ -1493,6 +1752,7 @@ components:
         - name
         - code
         - isActive
+        - isVenue
         - createdAt
 
     UpdateLocationBody:
@@ -1501,6 +1761,8 @@ components:
         name:
           type: string
         isActive:
+          type: boolean
+        isVenue:
           type: boolean
 
     House:
@@ -1597,6 +1859,317 @@ components:
           type: string
         isActive:
           type: boolean
+
+    Shift:
+      type: object
+      properties:
+        id:
+          type: integer
+        registerId:
+          type: integer
+        cashierName:
+          type: string
+        status:
+          type: string
+          enum: [open, closed]
+        openingCash:
+          type: string
+        closingCashCounted:
+          type: ["string", "null"]
+        expectedCash:
+          type: ["string", "null"]
+        cashDifference:
+          type: ["string", "null"]
+        totalSalesCash:
+          type: string
+        totalSalesCard:
+          type: string
+        totalReturns:
+          type: string
+        notes:
+          type: ["string", "null"]
+        openedAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - registerId
+        - cashierName
+        - status
+        - openingCash
+        - totalSalesCash
+        - totalSalesCard
+        - totalReturns
+        - openedAt
+
+    ShiftListItem:
+      allOf:
+        - $ref: "#/components/schemas/Shift"
+        - type: object
+          properties:
+            registerName:
+              type: string
+            houseName:
+              type: string
+            locationId:
+              type: integer
+            locationName:
+              type: ["string", "null"]
+
+    OpenShiftBody:
+      type: object
+      properties:
+        registerId:
+          type: integer
+        cashierName:
+          type: string
+        openingCash:
+          type: number
+      required:
+        - registerId
+        - cashierName
+
+    CloseShiftBody:
+      type: object
+      properties:
+        closingCashCounted:
+          type: number
+        notes:
+          type: string
+      required:
+        - closingCashCounted
+
+    SaleItemInput:
+      type: object
+      properties:
+        name:
+          type: string
+        quantity:
+          type: number
+        pricePerUnit:
+          type: number
+      required:
+        - name
+        - quantity
+        - pricePerUnit
+
+    CreateSaleBody:
+      type: object
+      properties:
+        shiftId:
+          type: integer
+        paymentMethod:
+          type: string
+          enum: [cash, card]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleItemInput"
+      required:
+        - shiftId
+        - items
+
+    Sale:
+      type: object
+      properties:
+        id:
+          type: integer
+        shiftId:
+          type: integer
+        registerId:
+          type: integer
+        totalAmount:
+          type: string
+        paymentMethod:
+          type: string
+          enum: [cash, card]
+        status:
+          type: string
+          enum: [completed, returned, partially_returned]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - shiftId
+        - registerId
+        - totalAmount
+        - paymentMethod
+        - status
+        - createdAt
+
+    SaleListItem:
+      allOf:
+        - $ref: "#/components/schemas/Sale"
+        - type: object
+          properties:
+            registerName:
+              type: string
+            houseName:
+              type: string
+            locationName:
+              type: ["string", "null"]
+
+    SaleItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        saleId:
+          type: integer
+        name:
+          type: string
+        quantity:
+          type: string
+        pricePerUnit:
+          type: string
+        totalPrice:
+          type: string
+        returnedQuantity:
+          type: string
+      required:
+        - id
+        - saleId
+        - name
+        - quantity
+        - pricePerUnit
+        - totalPrice
+        - returnedQuantity
+
+    SaleDetail:
+      allOf:
+        - $ref: "#/components/schemas/Sale"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/SaleItem"
+
+    CreateReturnBody:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              saleItemId:
+                type: integer
+              quantity:
+                type: number
+            required:
+              - saleItemId
+              - quantity
+        reason:
+          type: string
+      required:
+        - items
+
+    ReturnResult:
+      type: object
+      properties:
+        totalReturnAmount:
+          type: number
+        status:
+          type: string
+      required:
+        - totalReturnAmount
+        - status
+
+    KassaVenueBreakdown:
+      type: object
+      properties:
+        locationId:
+          type: ["integer", "null"]
+        locationName:
+          type: string
+        totalSales:
+          type: number
+        salesCount:
+          type: integer
+      required:
+        - locationName
+        - totalSales
+        - salesCount
+
+    KassaHouseBreakdown:
+      type: object
+      properties:
+        houseId:
+          type: integer
+        houseName:
+          type: string
+        locationName:
+          type: string
+        totalSales:
+          type: number
+        salesCount:
+          type: integer
+      required:
+        - houseId
+        - houseName
+        - locationName
+        - totalSales
+        - salesCount
+
+    KassaTopItem:
+      type: object
+      properties:
+        name:
+          type: string
+        totalQuantity:
+          type: number
+        totalRevenue:
+          type: number
+      required:
+        - name
+        - totalQuantity
+        - totalRevenue
+
+    KassaAnalyticsSummary:
+      type: object
+      properties:
+        totalSalesCash:
+          type: number
+        totalSalesCard:
+          type: number
+        totalSales:
+          type: number
+        totalReturns:
+          type: number
+        netRevenue:
+          type: number
+        salesCount:
+          type: integer
+        openShiftsCount:
+          type: integer
+        byVenue:
+          type: array
+          items:
+            $ref: "#/components/schemas/KassaVenueBreakdown"
+        byHouse:
+          type: array
+          items:
+            $ref: "#/components/schemas/KassaHouseBreakdown"
+        topItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/KassaTopItem"
+      required:
+        - totalSalesCash
+        - totalSalesCard
+        - totalSales
+        - totalReturns
+        - netRevenue
+        - salesCount
+        - openShiftsCount
+        - byVenue
+        - byHouse
+        - topItems
 
     StaffMember:
       type: object

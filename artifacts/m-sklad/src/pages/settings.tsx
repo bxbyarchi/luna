@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { customFetch } from "@workspace/api-client-react";
+import { customFetch, useSeedDemoData } from "@workspace/api-client-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { User, Building2, Shield, MessageCircle, CheckCircle, XCircle, Save, Link, Plus, Trash2, Eye, EyeOff, Warehouse } from "lucide-react";
+import { User, Building2, Shield, MessageCircle, CheckCircle, XCircle, Save, Link, Plus, Trash2, Eye, EyeOff, Warehouse, Sparkles } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/roles";
 
 const CURRENCIES = [{ value: "KGS", label: "Сом (KGS)" }];
@@ -118,6 +118,39 @@ function OrgSection() {
           <div className="space-y-2"><Label>Часовой пояс</Label><Select value={timezone} onValueChange={setTimezone}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TIMEZONES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent></Select></div>
         </div>
         <Button onClick={() => save.mutate()} disabled={save.isPending}><Save className="mr-2 h-4 w-4" />Сохранить</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DemoDataSection() {
+  const { toast } = useToast();
+  const seed = useSeedDemoData();
+  const [result, setResult] = useState<Record<string, number> | null>(null);
+
+  function run() {
+    if (!confirm("Заполнить систему демо-данными (склады, домики, кассы, продажи)? Действие добавляет данные, ничего не удаляет.")) return;
+    seed.mutate(undefined, {
+      onSuccess: (data) => { setResult((data as { summary: Record<string, number> }).summary); toast({ title: "Демо-данные добавлены" }); },
+      onError: () => toast({ title: "Ошибка", variant: "destructive" }),
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-4 w-4" />Демо-данные</CardTitle>
+        <CardDescription>Заполняет систему тестовыми данными для проверки: домики и кассы на всех площадках, склад, сотрудники, смены и продажи. Повторный запуск не дублирует уже созданное — только добавляет недостающее.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Button onClick={run} disabled={seed.isPending}><Sparkles className="mr-2 h-4 w-4" />{seed.isPending ? "Заполняю..." : "Заполнить демо-данными"}</Button>
+        {result && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm pt-2">
+            {Object.entries(result).map(([key, value]) => (
+              <div key={key} className="rounded-lg border border-border p-2 text-center"><div className="text-lg font-semibold">{value}</div><div className="text-xs text-muted-foreground">{key}</div></div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -257,8 +290,8 @@ function TelegramSection() {
 export default function Settings() {
   const { canDo } = useCurrentUser();
   return <div className="space-y-6 max-w-4xl"><div><h1 className="text-2xl font-bold tracking-tight">Настройки</h1><p className="text-muted-foreground text-sm">Управление профилем, организацией и доступом.</p></div>
-    <Tabs defaultValue="profile"><TabsList className="grid grid-cols-4 w-full"><TabsTrigger value="profile" className="gap-2 text-xs sm:text-sm"><User className="h-4 w-4" /><span className="hidden sm:inline">Профиль</span></TabsTrigger><TabsTrigger value="org" className="gap-2 text-xs sm:text-sm"><Building2 className="h-4 w-4" /><span className="hidden sm:inline">Организация</span></TabsTrigger><TabsTrigger value="access" className="gap-2 text-xs sm:text-sm" disabled={!canDo("admin")}><Shield className="h-4 w-4" /><span className="hidden sm:inline">Доступ</span></TabsTrigger><TabsTrigger value="telegram" className="gap-2 text-xs sm:text-sm"><MessageCircle className="h-4 w-4" /><span className="hidden sm:inline">Telegram</span></TabsTrigger></TabsList>
-      <div className="mt-6"><TabsContent value="profile"><ProfileSection /></TabsContent><TabsContent value="org"><OrgSection /></TabsContent><TabsContent value="access"><AccessSection /></TabsContent><TabsContent value="telegram"><TelegramSection /></TabsContent></div>
+    <Tabs defaultValue="profile"><TabsList className="grid grid-cols-5 w-full"><TabsTrigger value="profile" className="gap-2 text-xs sm:text-sm"><User className="h-4 w-4" /><span className="hidden sm:inline">Профиль</span></TabsTrigger><TabsTrigger value="org" className="gap-2 text-xs sm:text-sm"><Building2 className="h-4 w-4" /><span className="hidden sm:inline">Организация</span></TabsTrigger><TabsTrigger value="access" className="gap-2 text-xs sm:text-sm" disabled={!canDo("admin")}><Shield className="h-4 w-4" /><span className="hidden sm:inline">Доступ</span></TabsTrigger><TabsTrigger value="telegram" className="gap-2 text-xs sm:text-sm"><MessageCircle className="h-4 w-4" /><span className="hidden sm:inline">Telegram</span></TabsTrigger><TabsTrigger value="demo" className="gap-2 text-xs sm:text-sm" disabled={!canDo("admin")}><Sparkles className="h-4 w-4" /><span className="hidden sm:inline">Демо-данные</span></TabsTrigger></TabsList>
+      <div className="mt-6"><TabsContent value="profile"><ProfileSection /></TabsContent><TabsContent value="org"><OrgSection /></TabsContent><TabsContent value="access"><AccessSection /></TabsContent><TabsContent value="telegram"><TelegramSection /></TabsContent><TabsContent value="demo"><DemoDataSection /></TabsContent></div>
     </Tabs>
   </div>;
 }
