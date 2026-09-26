@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Lock, Unlock, Trash2, Landmark, Minus, Wallet, ArrowDownToLine, ArrowUpFromLine, Percent } from "lucide-react";
+import { Plus, Lock, Unlock, Trash2, Landmark, Minus, Wallet, ArrowDownToLine, ArrowUpFromLine, Percent, ChevronLeft, Receipt, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -54,6 +54,20 @@ type ShiftRow = {
 
 type ProductRow = { id: number; houseId: number; category: string; name: string; price: string; isActive: boolean; sortOrder: number };
 type CartItem = { productId?: number; name: string; quantity: string; pricePerUnit: string };
+
+type ReceiptData = {
+  saleId: number;
+  createdAt: string;
+  cashierName: string;
+  registerName: string;
+  houseName: string;
+  paymentMethod: "cash" | "card";
+  items: Array<{ name: string; quantity: number; pricePerUnit: number }>;
+  subtotal: number;
+  discountPercent: number;
+  discountAmount: number;
+  total: number;
+};
 
 function money(v: string | number) {
   return Number(v).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " сом";
@@ -239,6 +253,7 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
   const createMovement = useCreateCashMovement();
 
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualRow, setManualRow] = useState<CartItem>({ name: "", quantity: "1", pricePerUnit: "" });
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
@@ -247,6 +262,7 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [movementDialogOpen, setMovementDialogOpen] = useState(false);
   const [zReport, setZReport] = useState<ShiftRow | null>(null);
+  const [receipt, setReceipt] = useState<ReceiptData | null>(null);
 
   const closeForm = useForm<CloseFormData>({ resolver: zodResolver(closeSchema), defaultValues: { closingCashCounted: "", notes: "" } });
   const movementForm = useForm<MovementFormData>({ resolver: zodResolver(movementSchema), defaultValues: { type: "collection", amount: "", note: "" } });
@@ -292,8 +308,21 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
       .map((r) => ({ productId: r.productId, name: r.name.trim(), quantity: Number(r.quantity), pricePerUnit: Number(r.pricePerUnit) }));
     if (!items.length) { toast({ title: "Добавьте хотя бы одну позицию", variant: "destructive" }); return; }
     createSale.mutate({ data: { shiftId: shift.id, paymentMethod, items, discountPercent: discPct || undefined, discountReason: discPct > 0 ? discountReason.trim() : undefined } }, {
-      onSuccess: () => {
+      onSuccess: (created) => {
         toast({ title: "Продажа оформлена" });
+        setReceipt({
+          saleId: (created as { id: number }).id,
+          createdAt: (created as { createdAt?: string }).createdAt ?? new Date().toISOString(),
+          cashierName: shift.cashierName,
+          registerName: shift.registerName,
+          houseName: shift.houseName,
+          paymentMethod,
+          items,
+          subtotal: cartSubtotal,
+          discountPercent: discPct,
+          discountAmount,
+          total: cartTotal,
+        });
         setCart([]);
         setDiscountPercent("");
         setDiscountReason("");
@@ -363,26 +392,54 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
               {!shift.houseId || !Object.keys(productsByCategory).length ? (
                 <p className="text-xs text-muted-foreground">Для этого домика ещё не настроены товары. Добавьте позицию вручную ниже.</p>
               ) : (
-                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                  {Object.entries(productsByCategory).map(([category, items]) => (
-                    <div key={category} className="space-y-1.5">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{category}</div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {items.map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => addProductToCart(p)}
-                            data-testid={`btn-product-${p.id}`}
-                            className="rounded-lg border border-border bg-card hover:bg-accent/60 active:scale-[0.98] transition-all p-3 text-left"
-                          >
-                            <div className="text-sm font-medium leading-tight">{p.name}</div>
-                            <div className="text-xs text-muted-foreground mt-1">{money(p.price)}</div>
-                          </button>
-                        ))}
-                      </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <button type="button" onClick={() => setSelectedCategory(null)} className={selectedCategory ? "hover:text-foreground hover:underline" : "font-semibold text-foreground"} data-testid="btn-breadcrumb-all-categories">
+                      Все товары
+                    </button>
+                    {selectedCategory && (<><span>›</span><span className="font-semibold text-foreground">{selectedCategory}</span></>)}
+                  </div>
+
+                  {!selectedCategory ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
+                      {Object.entries(productsByCategory).map(([category, items]) => (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => setSelectedCategory(category)}
+                          data-testid={`btn-category-${category}`}
+                          className="rounded-lg border border-border bg-card hover:bg-accent/60 active:scale-[0.98] transition-all p-4 text-center flex flex-col items-center justify-center gap-1 aspect-square"
+                        >
+                          <div className="text-sm font-semibold leading-tight">{category}</div>
+                          <div className="text-[11px] text-muted-foreground">{items.length} {items.length === 1 ? "товар" : "товаров"}</div>
+                        </button>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCategory(null)}
+                        className="rounded-lg border border-dashed border-border hover:bg-accent/60 transition-all p-3 flex flex-col items-center justify-center gap-1 text-muted-foreground"
+                        data-testid="btn-back-to-categories"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        <div className="text-xs">Назад</div>
+                      </button>
+                      {productsByCategory[selectedCategory]?.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => addProductToCart(p)}
+                          data-testid={`btn-product-${p.id}`}
+                          className="rounded-lg border border-border bg-card hover:bg-accent/60 active:scale-[0.98] transition-all p-3 text-left"
+                        >
+                          <div className="text-sm font-medium leading-tight">{p.name}</div>
+                          <div className="text-xs text-muted-foreground mt-1">{money(p.price)}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -463,7 +520,16 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
             ) : (
               <div className="space-y-1.5 max-h-64 overflow-y-auto">
                 {sales.map((s) => (
-                  <SaleRow key={s.id} sale={s} shiftId={shift.id} canReturn={shift.status === "open"} />
+                  <SaleRow
+                    key={s.id}
+                    sale={s}
+                    shiftId={shift.id}
+                    canReturn={shift.status === "open"}
+                    houseName={shift.houseName}
+                    registerName={shift.registerName}
+                    cashierName={shift.cashierName}
+                    onShowReceipt={setReceipt}
+                  />
                 ))}
               </div>
             )}
@@ -529,16 +595,89 @@ function ShiftWorkSheet({ shift, onClose, onClosedShift }: { shift: ShiftRow; on
           </Form>
         </DialogContent>
       </Dialog>
+
+      {receipt && <ReceiptDialog receipt={receipt} onClose={() => setReceipt(null)} />}
     </Sheet>
   );
 }
 
-function SaleRow({ sale, shiftId, canReturn }: { sale: { id: number; totalAmount: string; paymentMethod: string; status: string; createdAt: string }; shiftId: number; canReturn: boolean }) {
+function ReceiptDialog({ receipt, onClose }: { receipt: ReceiptData; onClose: () => void }) {
+  return (
+    <>
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          #print-receipt, #print-receipt * { visibility: visible !important; }
+          #print-receipt { position: fixed; inset: 0; padding: 16px; font-size: 12px; max-width: 320px; margin: 0 auto; }
+        }
+      `}</style>
+      <Dialog open onOpenChange={(v) => !v && onClose()}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Receipt className="h-4 w-4" /> Чек №{receipt.saleId}</DialogTitle></DialogHeader>
+          <div id="print-receipt" className="text-sm space-y-2">
+            <div className="text-center text-xs text-muted-foreground">
+              <div className="font-semibold text-foreground">{receipt.houseName} — {receipt.registerName}</div>
+              <div>{new Date(receipt.createdAt).toLocaleString("ru-RU")}</div>
+              <div>Кассир: {receipt.cashierName}</div>
+            </div>
+            <div className="border-t border-dashed border-border pt-2 space-y-1">
+              {receipt.items.map((it, i) => (
+                <div key={i} className="flex justify-between gap-2">
+                  <span className="flex-1">{it.name} × {it.quantity}</span>
+                  <span>{money(it.quantity * it.pricePerUnit)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-dashed border-border pt-2 space-y-1">
+              {receipt.discountPercent > 0 && (
+                <>
+                  <div className="flex justify-between text-muted-foreground"><span>Подытог</span><span>{money(receipt.subtotal)}</span></div>
+                  <div className="flex justify-between text-muted-foreground"><span>Скидка {receipt.discountPercent}%</span><span>−{money(receipt.discountAmount)}</span></div>
+                </>
+              )}
+              <div className="flex justify-between font-semibold text-base"><span>Итого</span><span>{money(receipt.total)}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Оплата</span><span>{receipt.paymentMethod === "cash" ? "Наличные" : "Безнал"}</span></div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={onClose} data-testid="btn-close-receipt">Готово</Button>
+            <Button onClick={() => window.print()} data-testid="btn-print-receipt"><Printer className="mr-2 h-4 w-4" /> Печать</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function SaleRow({ sale, shiftId, canReturn, houseName, registerName, cashierName, onShowReceipt }: {
+  sale: { id: number; totalAmount: string; paymentMethod: string; status: string; createdAt: string };
+  shiftId: number; canReturn: boolean; houseName: string; registerName: string; cashierName: string;
+  onShowReceipt: (receipt: ReceiptData) => void;
+}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const { data: detail } = useGetSale(sale.id, { query: { queryKey: getGetSaleQueryKey(sale.id), enabled: expanded } });
   const createReturn = useCreateReturn();
+
+  function showReceipt() {
+    if (!detail || !("items" in detail)) return;
+    const items = (detail.items as Array<{ name: string; quantity: string; pricePerUnit: string }>).map((it) => ({ name: it.name, quantity: Number(it.quantity), pricePerUnit: Number(it.pricePerUnit) }));
+    const d = detail as unknown as { subtotalAmount?: string; discountPercent?: string; discountAmount?: string };
+    onShowReceipt({
+      saleId: sale.id,
+      createdAt: sale.createdAt,
+      cashierName,
+      registerName,
+      houseName,
+      paymentMethod: sale.paymentMethod as "cash" | "card",
+      items,
+      subtotal: Number(d.subtotalAmount ?? sale.totalAmount),
+      discountPercent: Number(d.discountPercent ?? 0),
+      discountAmount: Number(d.discountAmount ?? 0),
+      total: Number(sale.totalAmount),
+    });
+  }
 
   function returnItem(saleItemId: number, quantity: number, name: string) {
     if (!confirm(`Вернуть «${name}» (${quantity} шт)?`)) return;
@@ -580,6 +719,11 @@ function SaleRow({ sale, shiftId, canReturn }: { sale: { id: number; totalAmount
               </div>
             );
           })}
+          <div className="pt-1">
+            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={showReceipt} data-testid={`btn-receipt-${sale.id}`}>
+              <Receipt className="mr-1.5 h-3 w-3" /> Чек
+            </Button>
+          </div>
         </div>
       )}
     </div>
