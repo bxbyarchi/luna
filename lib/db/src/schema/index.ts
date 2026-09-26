@@ -16,4 +16,5 @@ export * from "./registers";
 export * from "./shifts";
 export * from "./sales";
 export * from "./products";
+export * from "./productRecipeItems";
 export * from "./cashMovements";

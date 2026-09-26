@@ -617,6 +617,88 @@ paths:
         "204":
           description: Deleted
 
+  /products/{id}/cost:
+    get:
+      operationId: getProductCost
+      tags: [venue]
+      summary: Recipe cost breakdown and margin for a product (себестоимость), location_admin only
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Cost breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductCost"
+
+  /products/{id}/recipe:
+    post:
+      operationId: addRecipeItem
+      tags: [venue]
+      summary: Add a warehouse ingredient to a product's recipe (location_admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddRecipeItemBody"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeItem"
+
+  /products/recipe/{id}:
+    patch:
+      operationId: updateRecipeItem
+      tags: [venue]
+      summary: Update a recipe ingredient's quantity (location_admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRecipeItemBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecipeItem"
+    delete:
+      operationId: deleteRecipeItem
+      tags: [venue]
+      summary: Remove an ingredient from a product's recipe (location_admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   /shifts/{id}/cash-movements:
     get:
       operationId: listCashMovements
@@ -2132,6 +2214,97 @@ components:
           type: boolean
         sortOrder:
           type: integer
+
+    RecipeItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        productId:
+          type: integer
+        itemId:
+          type: integer
+        quantity:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - productId
+        - itemId
+        - quantity
+        - createdAt
+
+    AddRecipeItemBody:
+      type: object
+      properties:
+        itemId:
+          type: integer
+        quantity:
+          type: number
+      required:
+        - itemId
+        - quantity
+
+    UpdateRecipeItemBody:
+      type: object
+      properties:
+        quantity:
+          type: number
+      required:
+        - quantity
+
+    ProductCostIngredient:
+      type: object
+      properties:
+        id:
+          type: integer
+        itemId:
+          type: integer
+        itemName:
+          type: string
+        unit:
+          type: string
+        quantity:
+          type: string
+        pricePerUnit:
+          type: string
+        cost:
+          type: number
+      required:
+        - id
+        - itemId
+        - itemName
+        - unit
+        - quantity
+        - pricePerUnit
+        - cost
+
+    ProductCost:
+      type: object
+      properties:
+        productId:
+          type: integer
+        price:
+          type: number
+        totalCost:
+          type: number
+        margin:
+          type: number
+        marginPercent:
+          type: number
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductCostIngredient"
+      required:
+        - productId
+        - price
+        - totalCost
+        - margin
+        - marginPercent
+        - ingredients
 
     CashMovement:
       type: object

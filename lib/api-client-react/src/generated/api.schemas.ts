@@ -391,6 +391,42 @@ export interface UpdateProductBody {
   sortOrder?: number;
 }
 
+export interface RecipeItem {
+  id: number;
+  productId: number;
+  itemId: number;
+  quantity: string;
+  createdAt: string;
+}
+
+export interface AddRecipeItemBody {
+  itemId: number;
+  quantity: number;
+}
+
+export interface UpdateRecipeItemBody {
+  quantity: number;
+}
+
+export interface ProductCostIngredient {
+  id: number;
+  itemId: number;
+  itemName: string;
+  unit: string;
+  quantity: string;
+  pricePerUnit: string;
+  cost: number;
+}
+
+export interface ProductCost {
+  productId: number;
+  price: number;
+  totalCost: number;
+  margin: number;
+  marginPercent: number;
+  ingredients: ProductCostIngredient[];
+}
+
 export type CashMovementType =
   (typeof CashMovementType)[keyof typeof CashMovementType];
 

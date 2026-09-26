@@ -572,6 +572,70 @@ export const DeleteProductParams = zod.object({
 });
 
 /**
+ * @summary Recipe cost breakdown and margin for a product (себестоимость), location_admin only
+ */
+export const GetProductCostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetProductCostResponse = zod.object({
+  productId: zod.number(),
+  price: zod.number(),
+  totalCost: zod.number(),
+  margin: zod.number(),
+  marginPercent: zod.number(),
+  ingredients: zod.array(
+    zod.object({
+      id: zod.number(),
+      itemId: zod.number(),
+      itemName: zod.string(),
+      unit: zod.string(),
+      quantity: zod.string(),
+      pricePerUnit: zod.string(),
+      cost: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Add a warehouse ingredient to a product's recipe (location_admin only)
+ */
+export const AddRecipeItemParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AddRecipeItemBody = zod.object({
+  itemId: zod.number(),
+  quantity: zod.number(),
+});
+
+/**
+ * @summary Update a recipe ingredient's quantity (location_admin only)
+ */
+export const UpdateRecipeItemParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateRecipeItemBody = zod.object({
+  quantity: zod.number(),
+});
+
+export const UpdateRecipeItemResponse = zod.object({
+  id: zod.number(),
+  productId: zod.number(),
+  itemId: zod.number(),
+  quantity: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Remove an ingredient from a product's recipe (location_admin only)
+ */
+export const DeleteRecipeItemParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List инкассация (cash collection/deposit) events for a shift
  */
 export const ListCashMovementsParams = zod.object({
