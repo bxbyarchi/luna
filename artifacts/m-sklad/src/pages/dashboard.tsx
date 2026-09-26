@@ -21,6 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Download, TrendingUp, TrendingDown, Package, AlertTriangle, ArrowDownToLine, ArrowUpFromLine, KeyRound } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { downloadExport } from "@/lib/downloadExport";
+import { useToast } from "@/hooks/use-toast";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend,
@@ -48,6 +50,7 @@ export default function Dashboard() {
   const [period, setPeriod] = useState<Period>("month");
   const { canDo } = useCurrentUser();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const { data: summary, isLoading: loadingSummary } = useGetAnalyticsSummary({
     query: { queryKey: getGetAnalyticsSummaryQueryKey() },
@@ -70,8 +73,14 @@ export default function Dashboard() {
     query: { queryKey: getGetAnalyticsActiveRentalsQueryKey() },
   });
 
-  const handleExportStock = () => { window.open("/api/export/stock", "_blank"); };
-  const handleExportWriteOffs = () => { window.open("/api/export/write-offs", "_blank"); };
+  const handleExportStock = () => {
+    downloadExport("/api/export/stock", `stock-${new Date().toISOString().slice(0, 10)}.xlsx`)
+      .catch(() => toast({ title: "Не удалось скачать остатки", variant: "destructive" }));
+  };
+  const handleExportWriteOffs = () => {
+    downloadExport("/api/export/write-offs", `write-offs-${new Date().toISOString().slice(0, 10)}.xlsx`)
+      .catch(() => toast({ title: "Не удалось скачать списания", variant: "destructive" }));
+  };
 
   const spendingData = (spending ?? []).map((d) => ({
     label: new Date(d.period).toLocaleDateString("ru-RU", { month: "short", day: "numeric" }),

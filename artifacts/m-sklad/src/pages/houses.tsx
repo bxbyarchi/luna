@@ -3,6 +3,7 @@ import { useLocation as useWouterLocation } from "wouter";
 import {
   useListHouses, useCreateHouse, useUpdateHouse, useDeleteHouse,
   useListLocations, getListHousesQueryKey,
+  useListProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, getListProductsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Edit, Trash2, KeyRound } from "lucide-react";
+import { Plus, Edit, Trash2, KeyRound, UtensilsCrossed, Landmark } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -40,6 +41,7 @@ export default function Houses() {
   const venues = allLocations?.filter((l) => l.isVenue);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<House | null>(null);
+  const [menuHouse, setMenuHouse] = useState<House | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -121,7 +123,7 @@ export default function Houses() {
                 <TableHead>Площадка</TableHead>
                 <TableHead>Касс</TableHead>
                 <TableHead>Статус</TableHead>
-                {canManage && <TableHead className="text-right">Действия</TableHead>}
+                <TableHead className="text-right">Действия</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -146,12 +148,20 @@ export default function Houses() {
                         {h.isActive ? "Активен" : "Неактивен"}
                       </Badge>
                     </TableCell>
-                    {canManage && (
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(h)} data-testid={`btn-edit-house-${h.id}`}><Edit className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(h.id)} data-testid={`btn-delete-house-${h.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                      </TableCell>
-                    )}
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="sm" onClick={() => setMenuHouse(h)} data-testid={`btn-menu-house-${h.id}`}>
+                        <UtensilsCrossed className="mr-1.5 h-3.5 w-3.5" /> Меню
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setLocation(`/registers?houseId=${h.id}`)} data-testid={`btn-registers-house-${h.id}`}>
+                        <Landmark className="mr-1.5 h-3.5 w-3.5" /> Кассы
+                      </Button>
+                      {canManage && (
+                        <>
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(h)} data-testid={`btn-edit-house-${h.id}`}><Edit className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(h.id)} data-testid={`btn-delete-house-${h.id}`}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -188,6 +198,135 @@ export default function Houses() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {menuHouse && (
+        <HouseMenuDialog house={menuHouse} canManage={canManage} onClose={() => setMenuHouse(null)} />
+      )}
     </div>
+  );
+}
+
+type Product = { id: number; houseId: number; category: string; name: string; price: string; isActive: boolean; sortOrder: number };
+
+const productSchema = z.object({
+  category: z.string().min(1, "Категория обязательна"),
+  name: z.string().min(1, "Название обязательно"),
+  price: z.string().min(1, "Цена обязательна"),
+});
+type ProductFormData = z.infer<typeof productSchema>;
+
+function HouseMenuDialog({ house, canManage, onClose }: { house: House; canManage: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const params = { houseId: house.id };
+  const { data: products, isLoading } = useListProducts(params, { query: { queryKey: getListProductsQueryKey(params) } });
+  const create = useCreateProduct();
+  const update = useUpdateProduct();
+  const remove = useDeleteProduct();
+
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+
+  const productsByCategory = ((products as Product[] | undefined) ?? []).reduce<Record<string, Product[]>>((acc, p) => {
+    (acc[p.category] ??= []).push(p);
+    return acc;
+  }, {});
+
+  const form = useForm<ProductFormData>({ resolver: zodResolver(productSchema), defaultValues: { category: "", name: "", price: "" } });
+
+  function openCreateProduct(category?: string) {
+    setEditingProduct(null);
+    form.reset({ category: category ?? "", name: "", price: "" });
+    setFormOpen(true);
+  }
+
+  function openEditProduct(p: Product) {
+    setEditingProduct(p);
+    form.reset({ category: p.category, name: p.name, price: p.price });
+    setFormOpen(true);
+  }
+
+  function submitProduct(data: ProductFormData) {
+    const invalidate = () => { queryClient.invalidateQueries({ queryKey: getListProductsQueryKey(params) }); setFormOpen(false); };
+    if (editingProduct) {
+      update.mutate({ id: editingProduct.id, data: { category: data.category, name: data.name, price: Number(data.price) } }, {
+        onSuccess: () => { toast({ title: "Товар обновлён" }); invalidate(); },
+        onError: () => toast({ title: "Ошибка", variant: "destructive" }),
+      });
+    } else {
+      create.mutate({ data: { houseId: house.id, category: data.category, name: data.name, price: Number(data.price) } }, {
+        onSuccess: () => { toast({ title: "Товар добавлен" }); invalidate(); },
+        onError: () => toast({ title: "Ошибка", variant: "destructive" }),
+      });
+    }
+  }
+
+  function handleDeleteProduct(id: number) {
+    if (!confirm("Удалить товар из меню?")) return;
+    remove.mutate({ id }, {
+      onSuccess: () => { toast({ title: "Товар удалён" }); queryClient.invalidateQueries({ queryKey: getListProductsQueryKey(params) }); },
+      onError: () => toast({ title: "Ошибка", variant: "destructive" }),
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Меню домика «{house.name}»</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Загрузка...</p>
+          ) : !Object.keys(productsByCategory).length ? (
+            <p className="text-sm text-muted-foreground">В меню пока нет товаров.</p>
+          ) : (
+            Object.entries(productsByCategory).map(([category, items]) => (
+              <div key={category} className="space-y-1.5">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{category}</div>
+                <div className="space-y-1">
+                  {items.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between rounded-md border border-border px-3 py-1.5 text-sm">
+                      <span>{p.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{Number(p.price).toLocaleString("ru-RU")} сом</span>
+                        {canManage && (
+                          <>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEditProduct(p)} data-testid={`btn-edit-product-${p.id}`}><Edit className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDeleteProduct(p.id)} data-testid={`btn-delete-product-${p.id}`}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+
+          {canManage && (
+            !formOpen ? (
+              <Button variant="outline" size="sm" onClick={() => openCreateProduct()} data-testid="btn-add-product"><Plus className="mr-1.5 h-3.5 w-3.5" /> Добавить товар</Button>
+            ) : (
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(submitProduct)} className="space-y-3 rounded-lg border border-dashed border-border p-3">
+                  <FormField control={form.control} name="category" render={({ field }) => (
+                    <FormItem><FormLabel className="text-xs">Категория *</FormLabel><FormControl><Input placeholder="напр. Горячие напитки" {...field} data-testid="input-product-category" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="name" render={({ field }) => (
+                    <FormItem><FormLabel className="text-xs">Название *</FormLabel><FormControl><Input placeholder="напр. Кофе американо" {...field} data-testid="input-product-name" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={form.control} name="price" render={({ field }) => (
+                    <FormItem><FormLabel className="text-xs">Цена (сом) *</FormLabel><FormControl><Input type="number" step="0.01" {...field} data-testid="input-product-price" /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setFormOpen(false)}>Отмена</Button>
+                    <Button type="submit" size="sm" disabled={create.isPending || update.isPending} data-testid="btn-submit-product">{editingProduct ? "Сохранить" : "Добавить"}</Button>
+                  </div>
+                </form>
+              </Form>
+            )
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMe } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { LayoutDashboard, Package, Tags, ArrowDownToLine, ArrowUpFromLine, ClipboardCheck, Users, History, Settings, LogOut, KeyRound, FileBarChart, Menu, X, MapPin, Snowflake, Truck, Home, Landmark, Unlock, PieChart } from "lucide-react";
+import { LayoutDashboard, Package, Tags, ArrowDownToLine, ArrowUpFromLine, ClipboardCheck, Users, History, Settings, LogOut, KeyRound, FileBarChart, Menu, X, MapPin, Snowflake, Truck, Home, Unlock, PieChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS } from "@/lib/roles";
 
@@ -27,9 +27,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   ];
   const venueNavigation = [
     { name: "Домики", href: "/houses", icon: Home, roles: ["super_admin", "location_admin"], testId: "houses" },
-    { name: "Кассы", href: "/registers", icon: Landmark, roles: ["super_admin", "location_admin"], testId: "registers" },
     { name: "Смены", href: "/shifts", icon: Unlock, roles: ["super_admin", "location_admin", "cashier"], testId: "shifts" },
     { name: "Аналитика касс", href: "/kassa-dashboard", icon: PieChart, roles: ["super_admin", "location_admin"], testId: "kassa-dashboard" },
+    { name: "Отчёты касс", href: "/kassa-reports", icon: FileBarChart, roles: ["super_admin", "location_admin"], testId: "kassa-reports" },
   ];
   const settingsItem = { name: "Настройки", href: "/settings", icon: Settings, testId: "settings" };
   const closeSidebar = () => setSidebarOpen(false);

@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, Wallet, CreditCard, Undo2, Unlock } from "lucide-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { downloadExport } from "@/lib/downloadExport";
+import { useToast } from "@/hooks/use-toast";
 
 function money(v: number) {
   return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(v) + " сом";
@@ -18,6 +20,7 @@ function money(v: number) {
 export default function KassaDashboard() {
   const { isVenueAdmin } = useCurrentUser();
   const isAdmin = isVenueAdmin;
+  const { toast } = useToast();
   const [locationFilter, setLocationFilter] = useState("");
   const { data: allLocations } = useListLocations();
   const venues = allLocations?.filter((l) => l.isVenue);
@@ -28,7 +31,8 @@ export default function KassaDashboard() {
   function handleExport() {
     const q = new URLSearchParams();
     if (locationFilter) q.set("locationId", locationFilter);
-    window.open(`/api/export/kassa?${q.toString()}`, "_blank");
+    downloadExport(`/api/export/kassa?${q.toString()}`, `kassa-report-${new Date().toISOString().slice(0, 10)}.xlsx`)
+      .catch(() => toast({ title: "Не удалось скачать отчёт", variant: "destructive" }));
   }
 
   return (
