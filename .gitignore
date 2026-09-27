@@ -47,3 +47,21 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Secrets — real values never belong in git, only .env.example (names, no values)
+.env
+.env.*
+!.env.example
+
+# DB dumps / backups — may contain real customer & staff PII (see incident 2026-09-27:
+# backup_database.sql was committed to this PUBLIC repo and has been purged from history).
+# Drizzle migrations (lib/db/drizzle/**/*.sql) are schema, not data — kept tracked.
+*.sql
+!lib/db/drizzle/**/*.sql
+*.dump
+*.dump.gz
+
+# Source snapshots / archives that have accidentally ended up committed before
+# (project.zip, project_part_aa.., artifacts/m-sklad/public/code_clean.zip)
+*.zip
+project_part_*
