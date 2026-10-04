@@ -6,6 +6,7 @@ import {
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireSuperAdmin } from "../middleware/rbac";
+import { sensitiveActionLimiter } from "../middlewares/security";
 
 const router: IRouter = Router();
 
@@ -45,7 +46,7 @@ const HOUSE_NAMES = Object.keys(HOUSE_MENU);
 function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min: number, max: number): number { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
-router.post("/admin/seed-demo-data", requireAuth(), requireSuperAdmin(), async (req: Request, res: Response) => {
+router.post("/admin/seed-demo-data", requireAuth(), requireSuperAdmin(), sensitiveActionLimiter, async (req: Request, res: Response) => {
   const summary = { locations: 0, categories: 0, items: 0, houses: 0, registers: 0, products: 0, staff: 0, shifts: 0, sales: 0, returns: 0 };
 
   await db.insert(locationsTable).values([...DEFAULT_LOCATIONS]).onConflictDoNothing();

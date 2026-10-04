@@ -3,6 +3,7 @@ import { requireAuth } from "../lib/requireAuth";
 import { db } from "@workspace/db";
 import { usersTable, locationsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { sensitiveActionLimiter } from "../middlewares/security";
 
 const router: IRouter = Router();
 
@@ -15,7 +16,7 @@ async function requireSuperAdmin(req: Request, res: Response): Promise<boolean> 
 }
 
 // Супер-админ назначает сотруднику конкретный склад. Пустой locationId снимает назначение.
-router.patch("/admin/users/:id/location", requireAuth(), async (req: Request, res: Response) => {
+router.patch("/admin/users/:id/location", requireAuth(), sensitiveActionLimiter, async (req: Request, res: Response) => {
   if (!(await requireSuperAdmin(req, res))) return;
 
   const id = Number(req.params.id);

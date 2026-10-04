@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { appSettingsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { sensitiveActionLimiter } from "../middlewares/security";
 
 const router: IRouter = Router();
 
@@ -79,7 +80,7 @@ router.get("/admin/users", requireAuth(), async (req: Request, res: Response) =>
 });
 
 /** Create a Clerk user + insert into usersTable */
-router.post("/admin/users", requireAuth(), async (req: Request, res: Response) => {
+router.post("/admin/users", requireAuth(), sensitiveActionLimiter, async (req: Request, res: Response) => {
   const manager = await requireUserManager(req, res);
   if (!manager) return;
 
@@ -169,7 +170,7 @@ router.post("/admin/users", requireAuth(), async (req: Request, res: Response) =
 });
 
 /** Change user role */
-router.patch("/admin/users/:id/role", requireAuth(), async (req: Request, res: Response) => {
+router.patch("/admin/users/:id/role", requireAuth(), sensitiveActionLimiter, async (req: Request, res: Response) => {
   const manager = await requireUserManager(req, res);
   if (!manager) return;
   const id = Number(req.params.id);
@@ -192,7 +193,7 @@ router.patch("/admin/users/:id/role", requireAuth(), async (req: Request, res: R
 });
 
 /** Delete user from DB (also removes from Clerk if possible) */
-router.delete("/admin/users/:id", requireAuth(), async (req: Request, res: Response) => {
+router.delete("/admin/users/:id", requireAuth(), sensitiveActionLimiter, async (req: Request, res: Response) => {
   const manager = await requireUserManager(req, res);
   if (!manager) return;
 
