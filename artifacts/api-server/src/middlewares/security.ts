@@ -1,6 +1,6 @@
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request } from "express";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -53,7 +53,10 @@ export const helmetMiddleware = helmet({
  * per-account key doesn't exist yet. */
 function keyByUserThenIp(req: Request): string {
   const auth = (req as Request & { auth?: { userId?: string } }).auth;
-  return auth?.userId ?? req.ip ?? "unknown";
+  if (auth?.userId) return auth.userId;
+  // ipKeyGenerator normalizes IPv6 addresses to a /64 prefix — a raw address
+  // would let one client cycle through its subnet to dodge the limit.
+  return req.ip ? ipKeyGenerator(req.ip) : "unknown";
 }
 
 /** Baseline limiter for all /api traffic. Generous on purpose: this exists to
