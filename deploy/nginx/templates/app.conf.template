@@ -1,0 +1,36 @@
+# Шаблон reverse-proxy конфига для одного приложения на этом сервере.
+# Генерируется и ставится в /etc/nginx/sites-available/ скриптом
+# deploy/nginx/add-site.sh — не редактируйте файлы в sites-available/
+# напрямую, правьте этот шаблон и перегенерируйте через add-site.sh.
+#
+# Подстановки (делает add-site.sh): __DOMAIN__, __PORT__
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+
+    # certbot сам добавит сюда блок для ACME-challenge и редирект на 443
+    # при первом запуске (--nginx плагин переписывает этот файл).
+
+    include snippets/security-headers.conf;
+
+    # Тело запроса: JSON от кассовых планшетов небольшое, но фото уходят
+    # напрямую в GCS по presigned URL, а не через этот сервер — 10M с
+    # запасом на случай будущих эндпоинтов с прямой загрузкой.
+    client_max_body_size 10m;
+
+    location / {
+        proxy_pass http://127.0.0.1:__PORT__;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
