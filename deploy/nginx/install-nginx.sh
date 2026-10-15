@@ -33,7 +33,9 @@ cp "${SCRIPT_DIR}/snippets/gzip.conf" /etc/nginx/snippets/gzip.conf
 # ("gzip directive is duplicate"). Поэтому заменяем штатный блок целиком на
 # include нашего сниппета (идемпотентно: если блок уже заменён, этот sed
 # просто ничего не найдёт и не тронет файл).
-if grep -q '^\tgzip on;$' /etc/nginx/nginx.conf; then
+# grep -P: в обычном (BRE) grep "\t" — это не табуляция, а буква "t", и
+# проверка молча никогда не срабатывала. GNU sed ниже "\t" понимает сам.
+if grep -qP '^\tgzip on;$' /etc/nginx/nginx.conf; then
   sed -i '/^\tgzip on;$/,/gzip_types/c\
 \tinclude snippets/gzip.conf;' /etc/nginx/nginx.conf
 fi
