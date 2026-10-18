@@ -46,6 +46,18 @@ else
   echo "Создан пользователь ${DEPLOY_USER} (sudo, без пароля для входа — только по ключу)."
 fi
 
+# adduser --disabled-password создаёт пользователя вообще без пароля — одно
+# членство в группе sudo этим пользователю не даёт: `sudo` всё равно спросит
+# пароль, которого нет. Нужно явное sudoers-правило NOPASSWD.
+SUDOERS_FILE="/etc/sudoers.d/90-${DEPLOY_USER}"
+if [[ -f "$SUDOERS_FILE" ]]; then
+  echo "Правило sudoers для ${DEPLOY_USER} уже есть — пропускаю."
+else
+  echo "${DEPLOY_USER} ALL=(ALL) NOPASSWD:ALL" > "$SUDOERS_FILE"
+  chmod 440 "$SUDOERS_FILE"
+  visudo -c -f "$SUDOERS_FILE"
+fi
+
 DEPLOY_HOME="/home/${DEPLOY_USER}"
 mkdir -p "${DEPLOY_HOME}/.ssh"
 chmod 700 "${DEPLOY_HOME}/.ssh"
@@ -71,6 +83,21 @@ fi
 # ---------------------------------------------------------------------------
 log "SSH: только по ключу, без root и без паролей"
 SSHD_DROPIN=/etc/ssh/sshd_config.d/99-luna-hardening.conf
+
+# sshd применяет ПЕРВОЕ попавшееся значение каждой директивы при обработке
+# Include-файлов в sshd_config.d/ — по алфавитному порядку имён. Ubuntu
+# cloud-образы по умолчанию ставят 50-cloud-init.conf с
+# `PasswordAuthentication yes`, который, сортируясь раньше 99-luna-hardening,
+# иначе тихо побеждает и сводит это хардение на нет. Нейтрализуем такие
+# более ранние файлы перед тем, как создавать свой дроп-ин.
+for f in /etc/ssh/sshd_config.d/*.conf; do
+  [[ -e "$f" ]] || continue
+  [[ "$(basename "$f")" == "$(basename "$SSHD_DROPIN")" ]] && continue
+  if [[ "$f" < "$SSHD_DROPIN" ]]; then
+    sed -i -E 's/^[[:space:]]*PasswordAuthentication[[:space:]]+yes/PasswordAuthentication no/i; s/^[[:space:]]*PermitRootLogin[[:space:]]+yes/PermitRootLogin no/i' "$f"
+  fi
+done
+
 cat > "$SSHD_DROPIN" <<'EOF'
 # Добавлено setup-server.sh — вход только по SSH-ключу.
 PermitRootLogin no
@@ -79,6 +106,15 @@ KbdInteractiveAuthentication no
 EOF
 sshd -t
 systemctl reload ssh
+
+# Проверяем итоговую ЭФФЕКТИВНУЮ конфигурацию, а не только свой дроп-ин —
+# другой файл мог её всё равно перебить. Лучше остановиться с ошибкой, чем
+# оставить сервер менее защищённым, чем кажется.
+EFFECTIVE_SSHD="$(sshd -T)"
+if ! grep -qi '^permitrootlogin no' <<<"$EFFECTIVE_SSHD" || ! grep -qi '^passwordauthentication no' <<<"$EFFECTIVE_SSHD"; then
+  echo "ОШИБКА: эффективная конфигурация sshd всё ещё разрешает root и/или пароль — проверьте /etc/ssh/sshd_config.d/*.conf вручную." >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 log "fail2ban (бан за перебор SSH-паролей/ключей)"

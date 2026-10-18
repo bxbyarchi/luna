@@ -1,0 +1,85 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+env:
+  VPS_HOST: 188.116.20.71
+  VPS_USER: deploy
+  APP_DIR: /home/deploy/luna
+  CORS_ALLOWED_ORIGINS: http://188.116.20.71
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Build .env for the server
+        run: |
+          umask 077
+          cat > /tmp/app.env <<EOF
+          NODE_ENV=production
+          PORT=3000
+          CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+          CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY=${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          EOF
+
+      - name: Upload .env to server
+        run: |
+          scp -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
+            /tmp/app.env "$VPS_USER@$VPS_HOST:${APP_DIR}/.env"
+          rm -f /tmp/app.env
+
+      - name: Deploy (git pull + docker compose up)
+        run: |
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$VPS_USER@$VPS_HOST" "cd '$APP_DIR' && bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          echo "== git pull =="
+          git fetch origin main
+          git reset --hard origin/main
+          chmod 600 .env
+
+          echo "== docker compose up -d --build =="
+          docker compose up -d --build
+
+          echo "== waiting for /api/healthz =="
+          ok=0
+          for i in $(seq 1 36); do
+            if curl -fsS --max-time 3 http://127.0.0.1:3000/api/healthz >/dev/null 2>&1; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+
+          echo "== docker compose ps =="
+          docker compose ps
+
+          if [ "$ok" != "1" ]; then
+            echo "== app did not become healthy within 3 minutes — last logs =="
+            docker compose logs --tail=150 app
+            exit 1
+          fi
+
+          echo "== last app logs (for visibility) =="
+          docker compose logs --tail=50 app
+          echo "Deploy OK — app is healthy."
+          REMOTE
