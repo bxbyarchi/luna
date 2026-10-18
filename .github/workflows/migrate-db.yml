@@ -1,0 +1,110 @@
+name: Migrate DB from Render to VPS
+
+# Manual only — this moves real production data onto the VPS's Postgres and
+# overwrites whatever is there. Render itself is never written to: only
+# pg_dump (read-only) and read-only COUNT queries touch it.
+on:
+  workflow_dispatch: {}
+
+env:
+  VPS_HOST: 188.116.20.71
+  VPS_USER: deploy
+  APP_DIR: /home/deploy/luna
+  PG_IMAGE: postgres:18-alpine
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Dump Render database (read-only)
+        env:
+          RENDER_DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+        run: |
+          docker run --rm -v "$PWD:/out" -e RENDER_DATABASE_URL "$PG_IMAGE" \
+            pg_dump --format=custom --no-owner --no-acl "$RENDER_DATABASE_URL" -f /out/render.dump
+          ls -la render.dump
+
+      - name: Snapshot Render row counts (read-only)
+        env:
+          RENDER_DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+        run: |
+          docker run --rm -e RENDER_DATABASE_URL "$PG_IMAGE" \
+            psql "$RENDER_DATABASE_URL" -t -A -c \
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;" \
+            > tables.txt
+
+          : > render_counts.txt
+          while IFS= read -r table; do
+            [ -z "$table" ] && continue
+            count=$(docker run --rm -e RENDER_DATABASE_URL "$PG_IMAGE" \
+              psql "$RENDER_DATABASE_URL" -t -A -c "SELECT COUNT(*) FROM \"$table\";")
+            printf '%s %s\n' "$table" "$count" >> render_counts.txt
+          done < tables.txt
+          cat render_counts.txt
+
+      - name: Upload dump + counts to VPS
+        run: |
+          scp -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
+            render.dump render_counts.txt \
+            "$VPS_USER@$VPS_HOST:/home/deploy/"
+          rm -f render.dump render_counts.txt tables.txt
+
+      - name: Restore on VPS and compare row counts
+        run: |
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$VPS_USER@$VPS_HOST" "cd '$APP_DIR' && bash -s" <<'REMOTE'
+          set -euo pipefail
+          set -a; source .env; set +a
+          PGUSER="${POSTGRES_USER:-luna}"
+          PGDB="${POSTGRES_DB:-luna}"
+
+          echo "== dropping and recreating ${PGDB} on the VPS (Render is untouched) =="
+          docker compose exec -T postgres psql -U "$PGUSER" -d postgres \
+            -c "DROP DATABASE IF EXISTS ${PGDB};" \
+            -c "CREATE DATABASE ${PGDB};"
+
+          echo "== restoring dump =="
+          docker compose exec -T postgres pg_restore --no-owner --no-acl -U "$PGUSER" -d "$PGDB" \
+            < /home/deploy/render.dump
+
+          echo "== restarting app container =="
+          docker compose restart app
+
+          echo "== comparing row counts: Render (snapshot) vs VPS (just restored) =="
+          MISMATCH=0
+          printf '%-30s %12s %12s %s\n' TABLE RENDER VPS STATUS
+          while IFS=' ' read -r table render_count; do
+            [ -z "$table" ] && continue
+            vps_count=$(docker compose exec -T postgres psql -U "$PGUSER" -d "$PGDB" \
+              -t -A -c "SELECT COUNT(*) FROM \"${table}\";")
+            if [ "$render_count" = "$vps_count" ]; then
+              status=OK
+            else
+              status=MISMATCH
+              MISMATCH=1
+            fi
+            printf '%-30s %12s %12s %s\n' "$table" "$render_count" "$vps_count" "$status"
+          done < /home/deploy/render_counts.txt
+
+          rm -f /home/deploy/render.dump /home/deploy/render_counts.txt
+
+          if [ "$MISMATCH" = "1" ]; then
+            echo "Row count mismatch — see table above. VPS database left as restored; investigate before using it."
+            exit 1
+          fi
+          echo "All row counts match. Migration verified. Render was never modified."
+          REMOTE
+
+      - name: Clean up remote files on failure
+        if: always()
+        run: |
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$VPS_USER@$VPS_HOST" "rm -f /home/deploy/render.dump /home/deploy/render_counts.txt" || true
