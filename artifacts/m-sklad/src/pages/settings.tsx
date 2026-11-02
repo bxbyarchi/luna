@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { User, Building2, Shield, MessageCircle, CheckCircle, XCircle, Save, Link, Plus, Trash2, Eye, EyeOff, Warehouse, Sparkles } from "lucide-react";
-import { ROLE_LABELS } from "@/lib/roles";
+import { ROLE_LABELS, ASSIGNABLE_ROLE_LABELS, isRoleGranted } from "@/lib/roles";
 
 const CURRENCIES = [{ value: "KGS", label: "Сом (KGS)" }];
 const TIMEZONES = [
@@ -189,7 +189,7 @@ function AddEmployeeDialog({ open, onOpenChange, onCreated, isSuperAdmin }: { op
           <div className="space-y-1.5"><Label className="text-xs">Email *</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ivan@example.com" /></div>
           <div className="space-y-1.5"><Label className="text-xs">Временный пароль *</Label><div className="relative"><Input type={showPwd ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Минимум 8 символов" className="pr-10" /><button type="button" onClick={() => setShowPwd((p) => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">{showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
           <div className="space-y-1.5"><Label className="text-xs">Роль</Label>{isSuperAdmin ? (
-            <Select value={role} onValueChange={setRole}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ROLE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select>
+            <Select value={role} onValueChange={setRole}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ASSIGNABLE_ROLE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select>
           ) : (
             <Input value={ROLE_LABELS.cashier} disabled className="bg-muted" />
           )}</div>
@@ -230,7 +230,8 @@ function AccessSection() {
   });
 
   if (!canManageUsers) return <Card><CardContent className="py-8 text-center text-muted-foreground">Раздел доступен только Супер-админу и Админу площадки.</CardContent></Card>;
-  const userList = users ?? [];
+  const userList = [...(users ?? [])].sort((a, b) => Number(isRoleGranted(a.role)) - Number(isRoleGranted(b.role)));
+  const pendingCount = userList.filter((u) => !isRoleGranted(u.role)).length;
   const locationName = (id: number | null) => locations?.find((l) => l.id === id)?.name ?? "Не назначен";
 
   return (
@@ -244,7 +245,7 @@ function AccessSection() {
       </Dialog>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-3"><div><CardTitle className="text-base">Управление командой</CardTitle><CardDescription className="mt-1">Назначайте роль и склад каждому сотруднику.</CardDescription></div><Button size="sm" onClick={() => setAddOpen(true)}><Plus className="mr-2 h-4 w-4" />Добавить сотрудника</Button></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between pb-3"><div><CardTitle className="text-base">Управление командой</CardTitle><CardDescription className="mt-1">Назначайте роль и склад каждому сотруднику.</CardDescription>{pendingCount > 0 && <p className="mt-2 text-xs font-medium text-amber-700" data-testid="pending-count">Ждут роль: {pendingCount}. Пока роль не выбрана, человек видит только экран ожидания.</p>}</div><Button size="sm" onClick={() => setAddOpen(true)}><Plus className="mr-2 h-4 w-4" />Добавить сотрудника</Button></CardHeader>
         <CardContent className="p-0">
           {isLoading ? <div className="py-8 text-center text-muted-foreground text-sm">Загрузка...</div> : !userList.length ? <div className="py-8 text-center text-muted-foreground text-sm">Нет зарегистрированных пользователей.</div> : (
             <Table>
@@ -252,10 +253,11 @@ function AccessSection() {
               <TableBody>{userList.map((u) => {
                 const displayName = [u.firstName, u.lastName].filter(Boolean).join(" ") || "—";
                 const isMe = u.clerkUserId === me?.clerkUserId;
+                const isPending = !isRoleGranted(u.role);
                 return <TableRow key={u.id}>
-                  <TableCell><div className="flex flex-col"><span className="font-medium text-sm">{displayName}{isMe && <span className="ml-2 text-xs text-muted-foreground">(вы)</span>}</span><span className="text-xs text-muted-foreground">{u.email}</span></div></TableCell>
+                  <TableCell><div className="flex flex-col"><span className="font-medium text-sm">{displayName}{isMe && <span className="ml-2 text-xs text-muted-foreground">(вы)</span>}{isPending && <Badge variant="outline" className="ml-2 border-amber-300 bg-amber-50 text-amber-800 text-[10px]">ждёт роль</Badge>}</span><span className="text-xs text-muted-foreground">{u.email}</span></div></TableCell>
                   <TableCell>{isSuperAdmin ? (
-                    <Select value={u.role} onValueChange={(role) => changeRole.mutate({ id: u.id, role })} disabled={isMe}><SelectTrigger className="w-36 h-8"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ROLE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
+                    <Select value={isPending ? "" : u.role} onValueChange={(role) => changeRole.mutate({ id: u.id, role })} disabled={isMe}><SelectTrigger className={`w-36 h-8 ${isPending ? "border-amber-300 text-amber-800" : ""}`}><SelectValue placeholder="Выдать роль" /></SelectTrigger><SelectContent>{Object.entries(ASSIGNABLE_ROLE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
                   ) : (
                     <span className="text-sm">{ROLE_LABELS[u.role] ?? u.role}</span>
                   )}</TableCell>
@@ -268,7 +270,7 @@ function AccessSection() {
           )}
         </CardContent>
       </Card>
-      <div className="rounded-lg bg-muted/50 border p-4 text-xs text-muted-foreground space-y-1"><p className="font-medium text-foreground">Правило доступа</p><p>Кладовщик видит только назначенный ему склад.</p><p>Супер-админ и Завхоз видят все склады и могут менять назначения.</p><p>Админ площадки может создавать и удалять только кассиров своей площадки.</p><p>Если склад не назначен, сотрудник не получает доступ к складским остаткам.</p></div>
+      <div className="rounded-lg bg-muted/50 border p-4 text-xs text-muted-foreground space-y-1"><p className="font-medium text-foreground">Правило доступа</p><p>Кладовщик видит только назначенный ему склад.</p><p>Супер-админ и Завхоз видят все склады и могут менять назначения.</p><p>Админ площадки может создавать и удалять только кассиров своей площадки.</p><p>Если склад не назначен, сотрудник не получает доступ к складским остаткам.</p><p>Новый человек после первого входа получает метку «ждёт роль» и ничего не видит, пока ему не выберут роль.</p></div>
     </>
   );
 }

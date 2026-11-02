@@ -1555,7 +1555,7 @@ components:
           type: string
         role:
           type: string
-          enum: [super_admin, warehouse_chief, manager, accountant, warehouse, location_admin, cashier]
+          enum: [super_admin, warehouse_chief, manager, accountant, warehouse, location_admin, cashier, pending]
         firstName:
           type: ["string", "null"]
         lastName:

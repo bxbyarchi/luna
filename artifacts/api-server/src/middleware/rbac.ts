@@ -22,6 +22,11 @@ const VENUE_RANK: Partial<Record<UserRole, number>> = {
   cashier: 1,
 };
 
+// A role counts as granted only if it sits in one of the two tracks. New
+// accounts start as "pending" (see routes/auth.ts) and stay locked out until
+// an administrator assigns a real role.
+const GRANTED_ROLES = new Set<string>([...Object.keys(WAREHOUSE_RANK), ...Object.keys(VENUE_RANK)]);
+
 async function resolveUser(req: Request, res: Response) {
   const clerkUserId = (req as Request & { auth?: { userId?: string } }).auth?.userId;
   if (!clerkUserId) {
@@ -60,6 +65,27 @@ export function requireRole(...roles: UserRole[]) {
 /** Gate by venue/kassa-track role rank (super_admin sees everything, location_admin/cashier are scoped to their own venue). */
 export function requireVenueRole(...roles: UserRole[]) {
   return requireRank(VENUE_RANK, roles);
+}
+
+/**
+ * Router-wide gate, mounted in routes/index.ts right after health/auth/onboarding:
+ * a signed-in account without a granted role ("pending" or anything unknown)
+ * gets 403 on every route below it, including the ones guarded only by
+ * requireAuth(). Requests without a session pass through untouched, so each
+ * route's own requireAuth() still answers 401 and public routes stay public.
+ */
+export function requireGrantedRole() {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const clerkUserId = (req as Request & { auth?: { userId?: string } }).auth?.userId;
+    if (!clerkUserId) return next();
+
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+    if (!user || !GRANTED_ROLES.has(user.role)) {
+      res.status(403).json({ error: "Доступ ещё не выдан — обратитесь к администратору" });
+      return;
+    }
+    next();
+  };
 }
 
 /**

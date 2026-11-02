@@ -38,8 +38,9 @@ router.get("/auth/me", requireAuth(), async (req: Request, res: Response) => {
       .catch(() => [{ count: 0 }]);
 
     // Only the very first account becomes super_admin. Every subsequent account
-    // starts as a warehouse user and must be assigned a real role by an administrator.
-    const role = Number(userCount) === 0 ? "super_admin" : "warehouse";
+    // starts as "pending" — no access to anything (see requireGrantedRole in
+    // middleware/rbac.ts) until an administrator assigns a real role.
+    const role = Number(userCount) === 0 ? "super_admin" : "pending";
 
     [user] = await db
       .insert(usersTable)
