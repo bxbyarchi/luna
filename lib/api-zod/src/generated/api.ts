@@ -28,6 +28,7 @@ export const GetMeResponse = zod.object({
     "warehouse",
     "location_admin",
     "cashier",
+    "pending",
   ]),
   firstName: zod.string().nullish(),
   lastName: zod.string().nullish(),

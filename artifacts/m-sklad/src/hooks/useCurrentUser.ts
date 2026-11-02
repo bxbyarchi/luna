@@ -1,5 +1,5 @@
 import { useGetMe } from "@workspace/api-client-react";
-import { ROLE_LABELS } from "@/lib/roles";
+import { ROLE_LABELS, isRoleGranted } from "@/lib/roles";
 
 export { ROLE_LABELS };
 
@@ -56,6 +56,9 @@ export function useCurrentUser() {
   const isWarehouseAdmin = role === "super_admin" || role === "warehouse_chief";
   const isVenueAdmin = role === "super_admin";
   const canManageUsers = role === "super_admin" || role === "location_admin";
+  // Signed in, but no role granted yet — the API answers 403 to everything
+  // except /auth/me (see requireGrantedRole in api-server/src/middleware/rbac.ts).
+  const isPending = !!user && !isRoleGranted(user.role);
 
   const roleLabel = role ? (ROLE_LABELS[role] ?? role) : "";
 
@@ -68,6 +71,7 @@ export function useCurrentUser() {
     isWarehouseAdmin,
     isVenueAdmin,
     canManageUsers,
+    isPending,
     isLoading,
     isError,
     roleLabel,

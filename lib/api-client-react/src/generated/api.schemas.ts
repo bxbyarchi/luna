@@ -20,6 +20,7 @@ export const CurrentUserRole = {
   warehouse: "warehouse",
   location_admin: "location_admin",
   cashier: "cashier",
+  pending: "pending",
 } as const;
 
 export interface CurrentUser {

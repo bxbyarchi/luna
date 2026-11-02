@@ -26,12 +26,15 @@ import devSeedRouter from "./devSeed";
 import productsRouter from "./products";
 import productRecipesRouter from "./productRecipes";
 import cashMovementsRouter from "./cashMovements";
+import { requireGrantedRole } from "../middleware/rbac";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(onboardingRouter);
+// Everything below needs a granted role, not just a session — see rbac.ts.
+router.use(requireGrantedRole());
 router.use(locationsRouter);
 router.use(transfersRouter);
 router.use(userLocationsRouter);
